@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="google-site-verification" content="9A4r7WjsMjO6tp7jW4PuysJSpNTCashK1o-_V1P-hrM" />
+<link rel="icon" type="image/png" href="favicom.png">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#07080a">
+<meta name="description" content="Poleman: plataforma de juegos de automovilismo. Construí tu carrera de piloto desde la Fórmula 4 hasta la Fórmula 1.">
+<title>Poleman — Elegí tu modo de juego</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600;700;900&family=Inter:wght@400;500;600;700;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+/* Mismas variables y base que el simulador (carrera.html) para que el menú sea parte del mismo universo. */
+:root{
+  --bg:#07080a;
+  --panel:#111318;
+  --panel2:#181b21;
+  --panel3:#1f232b;
+  --line:#2a2e37;
+  --red:#E10600;
+  --orange:#FF8C1A;
+  --gold:#F5C518;
+  --silver:#C7CCD1;
+  --bronze:#CD7F32;
+  --text:#F5F6F7;
+  --muted:#9AA0A8;
+  --muted2:#6b7078;
+  --green:#33D17A;
+  --blue:#3671C6;
+}
+html{overflow-x:hidden; touch-action:manipulation;}
+*{box-sizing:border-box; margin:0; padding:0;}
+body{
+  background:
+    radial-gradient(ellipse 900px 500px at 15% -10%, rgba(225,6,0,0.10), transparent 60%),
+    radial-gradient(ellipse 700px 500px at 110% 10%, rgba(54,113,198,0.10), transparent 60%),
+    var(--bg);
+  color:var(--text);
+  font-family:'Inter',sans-serif;
+  min-height:100vh; min-height:100dvh;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+  transition:opacity .28s ease;
+}
+body.leaving{opacity:0;}
+button{font-family:inherit; cursor:pointer; color:inherit;}
+a{color:inherit; text-decoration:none;}
+::selection{background:var(--red); color:#fff;}
+.display{font-family:'Titillium Web',sans-serif; font-weight:900; letter-spacing:-0.01em;}
+.mono{font-family:'Space Mono',monospace;}
+
+.app{max-width:1180px; margin:0 auto; padding:28px 20px 48px;}
+
+/* ---------- cabecera ---------- */
+.topbar{display:flex; align-items:flex-start; justify-content:space-between; gap:16px; margin-bottom:34px;}
+.eyebrow{font-size:12px; letter-spacing:0.16em; color:var(--muted); font-weight:700; text-transform:uppercase; display:flex; align-items:center; gap:10px;}
+.eyebrow .dot{width:7px; height:7px; border-radius:50%; background:var(--red); box-shadow:0 0 10px var(--red);}
+.wordmark{
+  font-size:clamp(46px, 8vw, 84px); line-height:.95; margin:10px 0 10px; letter-spacing:-0.02em;
+  background:linear-gradient(95deg, var(--red) 0%, var(--red) 38%, var(--orange) 100%);
+  -webkit-background-clip:text; background-clip:text; color:transparent;
+  display:inline-block;
+}
+.tagline{color:var(--muted); font-size:15.5px; line-height:1.5;}
+
+/* semáforo de largada (mismo motivo que el home del simulador) */
+.lights{display:flex; gap:7px; padding-top:6px; flex-shrink:0;}
+.lights i{width:11px; height:11px; border-radius:50%; background:#2a2e37; display:block; box-shadow:inset 0 0 0 1px #35393f; transition:background .12s ease, box-shadow .12s ease;}
+.lights i.on{background:var(--red); box-shadow:0 0 9px var(--red), inset 0 0 0 1px #ff6a5c;}
+
+.select-label{display:flex; align-items:center; gap:14px; margin-bottom:16px; font-size:12px; letter-spacing:.16em; font-weight:700; text-transform:uppercase; color:var(--muted2);}
+.select-label::after{content:''; flex:1; height:1px; background:linear-gradient(90deg, var(--line), transparent);}
+
+/* ---------- grilla de modos ---------- */
+.modes{
+  display:grid; gap:18px;
+  grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);
+  grid-template-rows:repeat(2, minmax(0,1fr));
+}
+.mode-main{grid-row:1 / span 2;}
+@media(max-width:900px){
+  .modes{grid-template-columns:1fr; grid-template-rows:none;}
+  .mode-main{grid-row:auto;}
+}
+
+.mode{position:relative; border-radius:28px; overflow:hidden; border:1px solid var(--line); text-align:left; display:block; width:100%;}
+.mode-index{font-family:'Space Mono',monospace; font-size:11.5px; letter-spacing:.14em; color:var(--muted2); font-weight:700;}
+
+/* ---------- CARRERA (principal) ---------- */
+.mode-main{
+  min-height:470px; padding:34px 34px 32px;
+  background:
+    radial-gradient(circle at 12% 0%, rgba(225,6,0,0.20), transparent 52%),
+    linear-gradient(160deg, #1a1214, #0d0e11 62%);
+  border-color:rgba(225,6,0,0.55);
+  box-shadow:0 0 0 1px rgba(225,6,0,0.12), 0 28px 70px -28px rgba(225,6,0,0.5);
+  display:flex; flex-direction:column; justify-content:space-between; gap:26px;
+  transition:transform .18s ease, box-shadow .2s ease, border-color .2s ease;
+}
+.mode-main:hover{transform:translateY(-3px); border-color:rgba(255,37,29,0.85); box-shadow:0 0 0 1px rgba(225,6,0,0.3), 0 34px 80px -26px rgba(225,6,0,0.65);}
+.mode-main:active{transform:translateY(0) scale(.995);}
+.mode-main::before{ /* franja de banderas a cuadros, sutil, en el borde superior */
+  content:''; position:absolute; left:0; right:0; top:0; height:8px; opacity:.35;
+  background:conic-gradient(#fff 25%, #000 0 50%, #fff 0 75%, #000 0) 0 0/16px 16px;
+  -webkit-mask-image:linear-gradient(90deg, #000, transparent 70%); mask-image:linear-gradient(90deg, #000, transparent 70%);
+}
+.main-track{position:absolute; right:-3%; bottom:-4%; width:58%; max-width:520px; aspect-ratio:1; pointer-events:none; opacity:.95;}
+.main-track svg{width:100%; height:100%; display:block; overflow:visible;}
+.main-body{position:relative; z-index:1; max-width:58%;}
+.main-top{position:relative; z-index:1; display:flex; align-items:center; gap:12px; flex-wrap:wrap;}
+.chip{display:inline-flex; align-items:center; gap:8px; border-radius:999px; padding:7px 14px; font-size:11.5px; font-weight:800; letter-spacing:.12em; text-transform:uppercase; border:1px solid transparent; white-space:nowrap;}
+.chip-live{background:rgba(51,209,122,.12); color:var(--green); border-color:rgba(51,209,122,.35);}
+.chip-live::before{content:''; width:7px; height:7px; border-radius:50%; background:var(--green); box-shadow:0 0 8px var(--green);}
+.mode-title{font-size:clamp(46px, 6.4vw, 72px); line-height:.98; margin-bottom:14px;}
+.mode-desc{color:#c9ced4; font-size:16px; line-height:1.6; max-width:430px; margin-bottom:22px;}
+.ladder{display:flex; align-items:center; gap:6px; flex-wrap:wrap; margin-bottom:28px;}
+.ladder b{font-family:'Titillium Web',sans-serif; font-weight:900; font-size:13px; letter-spacing:.06em; padding:6px 11px; border-radius:8px; line-height:1;}
+.ladder span{color:var(--muted2); font-size:12px;}
+.play-row{display:block;}
+.btn-play{
+  display:inline-flex; align-items:center; justify-content:center; gap:12px;
+  background:var(--red); color:#fff; border:0; border-radius:999px; padding:17px 38px 17px 30px;
+  font-family:'Titillium Web',sans-serif; font-weight:900; font-size:21px; letter-spacing:.1em;
+  box-shadow:0 10px 30px -8px rgba(225,6,0,.75);
+  transition:background .15s ease, transform .12s ease, box-shadow .15s ease;
+}
+.btn-play svg{width:20px; height:20px; flex-shrink:0;}
+.mode-main:hover .btn-play, .btn-play:focus-visible{background:#ff251d; box-shadow:0 12px 36px -6px rgba(255,37,29,.85);}
+.btn-play:active{transform:scale(.97);}
+.mode-main{cursor:pointer;}
+.mode-main:focus-within{outline:2px solid #fff; outline-offset:3px;}
+
+/* ---------- Modos bloqueados ---------- */
+.mode-locked{
+  padding:24px; min-height:210px; cursor:not-allowed;
+  display:grid; grid-template-columns:112px 1fr; gap:22px; align-items:center;
+  background:
+    repeating-linear-gradient(135deg, transparent 0 14px, rgba(255,255,255,0.016) 14px 28px),
+    linear-gradient(160deg, #14161b, #0c0d10 70%);
+}
+.mode-locked:focus-visible{outline:2px solid #fff; outline-offset:3px;}
+.locked-art{position:relative; width:112px; height:112px; border-radius:22px; background:rgba(255,255,255,.03); border:1px solid var(--line); display:flex; align-items:center; justify-content:center; overflow:hidden;}
+.locked-art > *{filter:grayscale(1) brightness(.78); opacity:.72;}
+.lock-badge{
+  position:absolute; right:7px; bottom:7px; width:34px; height:34px; border-radius:50%;
+  background:#0a0a0c; border:1px solid #3a3f48; display:flex; align-items:center; justify-content:center; color:var(--silver);
+  filter:none !important; opacity:1 !important; box-shadow:0 4px 12px rgba(0,0,0,.5);
+}
+.lock-badge svg{width:16px; height:16px;}
+.locked-text{min-width:0;}
+.locked-text .mode-title{font-size:clamp(25px, 3vw, 31px); line-height:1.02; margin:8px 0 10px; color:#d9dce0;}
+.locked-text .mode-desc{font-size:13.5px; line-height:1.55; color:var(--muted); margin:0 0 14px; max-width:none;}
+.chip-soon{background:rgba(255,255,255,.04); color:var(--muted); border-color:#3a3f48; padding:6px 12px; font-size:11px;}
+.chip-soon svg{width:12px; height:12px;}
+
+.mode-locked.nope{animation:nope .42s cubic-bezier(.36,.07,.19,.97);}
+@keyframes nope{10%,90%{transform:translateX(-2px);} 20%,80%{transform:translateX(4px);} 30%,50%,70%{transform:translateX(-6px);} 40%,60%{transform:translateX(6px);}}
+
+/* escudos apilados (Team Principal) */
+.crests{display:flex; align-items:center; justify-content:center; padding-left:12px;}
+.crest{width:46px; height:46px; border-radius:50%; margin-left:-14px; display:flex; align-items:center; justify-content:center; border:2px solid #14161b; flex-shrink:0;}
+.crest img{width:66%; height:66%; object-fit:contain; display:block;}
+/* casco con interrogante (Trivia) */
+.helmet-q{width:84px; height:84px; position:relative;}
+.helmet-q svg{width:100%; height:100%; display:block;}
+
+/* ---------- franja de datos ---------- */
+.stats{
+  margin-top:22px; display:grid; grid-template-columns:repeat(4,1fr);
+  background:var(--panel); border:1px solid var(--line); border-radius:22px; padding:20px 12px;
+}
+.stat{text-align:center; padding:2px 8px; position:relative;}
+.stat + .stat::before{content:''; position:absolute; left:0; top:12%; bottom:12%; width:1px; background:var(--line);}
+.stat b{display:block; font-family:'Titillium Web',sans-serif; font-weight:900; font-size:32px; line-height:1; margin-bottom:6px;}
+.stat span{font-size:11.5px; letter-spacing:.12em; text-transform:uppercase; color:var(--muted2); font-weight:700;}
+.stat:nth-child(1) b{color:var(--red);}
+.stat:nth-child(2) b{color:var(--orange);}
+.stat:nth-child(3) b{color:var(--blue);}
+.stat:nth-child(4) b{color:var(--gold);}
+
+.footer-note{text-align:center; color:var(--muted2); font-size:11.5px; margin-top:30px;}
+
+/* ---------- aviso de modo bloqueado ---------- */
+.toast{
+  position:fixed; left:50%; bottom:max(26px, env(safe-area-inset-bottom)); z-index:50; max-width:min(92vw, 440px);
+  transform:translate(-50%, 24px); opacity:0; pointer-events:none;
+  display:flex; align-items:center; gap:12px; padding:13px 20px 13px 16px; border-radius:16px;
+  background:rgba(20,22,27,.96); border:1px solid #3a3f48; border-left:3px solid var(--red);
+  box-shadow:0 18px 44px rgba(0,0,0,.6); font-size:13.5px; line-height:1.4; color:var(--text);
+  transition:opacity .22s ease, transform .22s ease;
+}
+.toast.show{opacity:1; transform:translate(-50%, 0);}
+.toast svg{width:18px; height:18px; flex-shrink:0; color:var(--silver);}
+.toast b{font-family:'Titillium Web',sans-serif; font-weight:900; letter-spacing:.06em; text-transform:uppercase;}
+
+/* transición "tajo" rojo al entrar al simulador (misma que usa Poleman al elegir escudería) */
+.team-slash{position:fixed; top:0; left:-60vw; width:55vw; height:100vh; height:100dvh; pointer-events:none; z-index:9999; opacity:0; transform:skewX(-14deg);
+ background:linear-gradient(100deg, transparent 0%, transparent 32%, var(--red) 47%, var(--red) 57%, transparent 72%, transparent 100%);}
+.team-slash.play{animation:teamSlashMove .55s cubic-bezier(.65,0,.35,1) forwards;}
+@keyframes teamSlashMove{0%{left:-60vw; opacity:0;} 12%{opacity:0.92;} 46%{left:40vw; opacity:0.96;} 88%{opacity:0.85;} 100%{left:135vw; opacity:0;}}
+
+.fadein{animation:fadeIn .4s ease both;}
+.fadein.d1{animation-delay:.06s;} .fadein.d2{animation-delay:.12s;} .fadein.d3{animation-delay:.18s;} .fadein.d4{animation-delay:.24s;}
+@keyframes fadeIn{from{opacity:0; transform:translateY(8px);} to{opacity:1; transform:translateY(0);}}
+
+/* ---------- responsive ---------- */
+@media(max-width:900px){
+  .main-body{max-width:62%;}
+}
+@media(max-width:640px){
+  .app{padding:20px 16px 40px;}
+  .topbar{margin-bottom:24px;}
+  .tagline{font-size:14.5px;}
+  .mode{border-radius:24px;}
+  .mode-main{min-height:0; padding:26px 22px 24px; gap:22px;}
+  .main-track{width:92%; right:-26%; top:-8%; bottom:auto; opacity:.22;}
+  .main-body{max-width:100%;}
+  .mode-desc{font-size:15px;}
+  .btn-play{width:100%; padding:17px 24px;}
+  .mode-locked{grid-template-columns:84px 1fr; gap:16px; padding:18px; min-height:0;}
+  .locked-art{width:84px; height:84px; border-radius:18px;}
+  .lock-badge{width:28px; height:28px; right:5px; bottom:5px;}
+  .lock-badge svg{width:13px; height:13px;}
+  .crest{width:34px; height:34px; margin-left:-12px;}
+  .helmet-q{width:62px; height:62px;}
+  .stats{grid-template-columns:repeat(2,1fr); row-gap:18px; padding:20px 8px;}
+  .stat:nth-child(3)::before{display:none;}
+  .stat b{font-size:28px;}
+}
+@media(max-width:380px){
+  .lights i{width:9px; height:9px;}
+  .locked-text .mode-title{font-size:22px;}
+}
+@media(prefers-reduced-motion:reduce){
+  *{animation-duration:.01ms !important; animation-iteration-count:1 !important; transition-duration:.01ms !important;}
+}
+</style>
+</head>
+<body>
+
+<main class="app">
+  <header class="topbar fadein">
+    <div>
+      <div class="eyebrow"><span class="dot"></span>Plataforma de automovilismo</div>
+      <h1 class="wordmark display">POLEMAN</h1>
+      <p class="tagline">Elegí cómo querés vivir el automovilismo.</p>
+    </div>
+    <div class="lights" id="lights" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+  </header>
+
+  <div class="select-label fadein d1">Modos de juego</div>
+
+  <section class="modes" aria-label="Modos de juego">
+
+    <!-- 01 · CARRERA (disponible) -->
+    <article class="mode mode-main fadein d2" aria-labelledby="t-carrera">
+      <div class="main-track" aria-hidden="true">
+        <svg viewBox="0 0 300 300" fill="none">
+          <defs>
+            <path id="trk" d="M40 220 C 20 180, 20 120, 60 90 C 90 66, 130 90, 150 70 C 170 50, 160 20, 200 20 C 250 20, 260 60, 230 80 C 205 97, 170 90, 160 115 C 148 143, 190 150, 220 140 C 260 127, 285 160, 270 195 C 255 228, 200 230, 180 205 C 160 180, 175 155, 150 150 C 115 143, 100 190, 60 220 C 50 227, 45 225, 40 220 Z"/>
+          </defs>
+          <use href="#trk" stroke="#E10600" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>
+          <use href="#trk" stroke="#ffffff" stroke-width="1" stroke-dasharray="2 6" opacity="0.35"/>
+          <circle cx="40" cy="220" r="5" fill="#ffffff"/>
+          <text x="52" y="224" fill="#9AA0A8" font-size="9" font-family="Space Mono">START</text>
+          <circle r="5" fill="#fff" id="car">
+            <animateMotion dur="8s" repeatCount="indefinite" rotate="auto"><mpath href="#trk"/></animateMotion>
+          </circle>
+          <circle r="11" fill="#E10600" opacity=".35">
+            <animateMotion dur="8s" repeatCount="indefinite" rotate="auto"><mpath href="#trk"/></animateMotion>
+          </circle>
+        </svg>
+      </div>
+
+      <div class="main-top">
+        <span class="mode-index">01 / 03</span>
+        <span class="chip chip-live">Disponible</span>
+      </div>
+
+      <div class="main-body">
+        <h2 class="mode-title display" id="t-carrera">CARRERA</h2>
+        <p class="mode-desc">Construí tu carrera como piloto. Tomá decisiones, competí y alcanzá la cima del automovilismo.</p>
+        <div class="ladder" role="img" aria-label="De Fórmula 4 a Fórmula 1">
+          <b style="background:#CD7F32; color:#2b1400">F4</b><span>›</span>
+          <b style="background:#C7CCD1; color:#1a1c1f">FR</b><span>›</span>
+          <b style="background:#4C6B8A; color:#fff">F3</b><span>›</span>
+          <b style="background:#FF8C1A; color:#2b1700">F2</b><span>›</span>
+          <b style="background:#E10600; color:#fff">F1</b>
+        </div>
+      </div>
+
+      <div class="play-row">
+        <a class="btn-play" id="play" href="carrera.html">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15a1 1 0 0 0 1.5.86l12.5-7.5a1 1 0 0 0 0-1.72L8.5 3.64A1 1 0 0 0 7 4.5Z"/></svg>
+          JUGAR
+        </a>
+      </div>
+    </article>
+
+    <!-- 02 · TEAM PRINCIPAL (bloqueado) -->
+    <button type="button" class="mode mode-locked fadein d3" data-mode="Team Principal" aria-disabled="true" aria-describedby="d-tp">
+      <div class="locked-art">
+        <div class="crests" aria-hidden="true">
+          <div class="crest" style="background:#DC0000"><img src="assets/logos/f1/ferrari.svg.svg" alt="" loading="lazy"></div>
+          <div class="crest" style="background:#00D2BE"><img src="assets/logos/f1/mercedes.svg.svg" alt="" loading="lazy"></div>
+          <div class="crest" style="background:#FF8000"><img src="assets/logos/f1/mclaren.svg.svg" alt="" loading="lazy"></div>
+        </div>
+        <span class="lock-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+      </div>
+      <div class="locked-text">
+        <span class="mode-index">02 / 03</span>
+        <h2 class="mode-title display">TEAM PRINCIPAL</h2>
+        <p class="mode-desc" id="d-tp">Convertite en director de equipo. Gestioná tu escudería, tomá decisiones estratégicas y luchá por los campeonatos.</p>
+        <span class="chip chip-soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>Próximamente</span>
+      </div>
+    </button>
+
+    <!-- 03 · TRIVIA (bloqueado) -->
+    <button type="button" class="mode mode-locked fadein d4" data-mode="Trivia" aria-disabled="true" aria-describedby="d-tr">
+      <div class="locked-art">
+        <div class="helmet-q" aria-hidden="true">
+          <svg viewBox="0 0 200 200">
+            <defs><clipPath id="hq"><path d="M100 20 C50 20 20 56 20 106 C20 146 46 178 100 178 C154 178 180 146 180 106 C180 56 150 20 100 20 Z"/></clipPath></defs>
+            <g clip-path="url(#hq)"><rect width="200" height="200" fill="#F5C518"/><rect y="42" width="200" height="22" fill="#FF8C1A"/></g>
+            <ellipse cx="100" cy="82" rx="30" ry="16" fill="#ffffff"/>
+            <path d="M30 126 C30 106 55 98 100 98 C145 98 170 106 170 126 C170 148 147 160 100 160 C53 160 30 148 30 126 Z" fill="#0a0a0c"/>
+            <path d="M42 116 C58 107 82 103 100 103 C120 103 144 108 156 120 C148 111 120 105 100 105 C77 105 51 110 42 116 Z" fill="#ffffff" opacity="0.14"/>
+            <path d="M30 126 C30 106 55 98 100 98 C145 98 170 106 170 126 C170 148 147 160 100 160 C53 160 30 148 30 126 Z" fill="none" stroke="#FF8C1A" stroke-width="3"/>
+            <text x="100" y="92" text-anchor="middle" font-family="Titillium Web" font-weight="900" font-size="30" fill="#0a0a0c">?</text>
+          </svg>
+        </div>
+        <span class="lock-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg></span>
+      </div>
+      <div class="locked-text">
+        <span class="mode-index">03 / 03</span>
+        <h2 class="mode-title display">TRIVIA</h2>
+        <p class="mode-desc" id="d-tr">Adiviná pilotos y escuderías de Fórmula 1 a partir de una serie de pistas. ¡Cuanto antes aciertes, más puntos conseguís!</p>
+        <span class="chip chip-soon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>Próximamente</span>
+      </div>
+    </button>
+  </section>
+
+  <section class="stats fadein d4" aria-label="Datos del juego">
+    <div class="stat"><b>5</b><span>Categorías</span></div>
+    <div class="stat"><b>11</b><span>Escuderías F1</span></div>
+    <div class="stat"><b>22</b><span>Pilotos F1</span></div>
+    <div class="stat"><b>2026</b><span>Temporada</span></div>
+  </section>
+
+  <div class="footer-note">1 de 3 modos disponibles · Poleman está en desarrollo</div>
+</main>
+
+<div class="team-slash" id="slash" aria-hidden="true"></div>
+<div class="toast" id="toast" role="status" aria-live="polite">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4.5" y="10.5" width="15" height="10" rx="2.5"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/></svg>
+  <span id="toastText"></span>
+</div>
+
+<script>
+(function(){
+  var reduce = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var lights = Array.prototype.slice.call(document.querySelectorAll('#lights i'));
+  var timers = [];
+
+  // Semáforo de largada: se encienden de a una (en el simulador son decorativas).
+  function startLights(){
+    lights.forEach(function(l){ l.classList.remove('on'); });
+    lights.forEach(function(l, i){
+      timers.push(setTimeout(function(){ l.classList.add('on'); }, reduce ? 0 : 450 + i * 230));
+    });
+  }
+  startLights();
+
+  // Auto animado: respeta "reducir movimiento".
+  if(reduce){
+    var svg = document.querySelector('.main-track svg');
+    if(svg && svg.pauseAnimations) svg.pauseAnimations();
+  }
+
+  // ---- Entrar a CARRERA: luces apagadas + tajo rojo, y recién ahí se abre el simulador ----
+  var leaving = false;
+  function go(e, href){
+    if(e.defaultPrevented || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button > 0) return; // permite abrir en pestaña nueva
+    e.preventDefault();
+    if(leaving) return;
+    leaving = true;
+    if(reduce){ window.location.href = href; return; }
+    timers.forEach(clearTimeout);
+    lights.forEach(function(l){ l.classList.add('on'); });
+    setTimeout(function(){ lights.forEach(function(l){ l.classList.remove('on'); }); }, 140); // "lights out"
+    var slash = document.getElementById('slash');
+    slash.classList.remove('play'); void slash.offsetWidth; slash.classList.add('play');
+    setTimeout(function(){ document.body.classList.add('leaving'); }, 260);
+    setTimeout(function(){ window.location.href = href; }, 520);
+  }
+  // Toda la tarjeta de CARRERA es clickeable; el enlace "JUGAR" queda para teclado, lectores de pantalla y "abrir en pestaña nueva".
+  var mainCard = document.querySelector('.mode-main');
+  mainCard.addEventListener('click', function(e){
+    var link = e.target.closest ? e.target.closest('a') : null;
+    go(e, (link || document.getElementById('play')).getAttribute('href'));
+  });
+
+  // Si el usuario vuelve con el botón "atrás", restauramos el menú.
+  window.addEventListener('pageshow', function(ev){
+    if(ev.persisted){
+      leaving = false;
+      document.body.classList.remove('leaving');
+      document.getElementById('slash').classList.remove('play');
+      startLights();
+    }
+  });
+
+  // ---- Modos bloqueados: no abren nada, solo avisan ----
+  var toast = document.getElementById('toast');
+  var toastText = document.getElementById('toastText');
+  var toastTimer = null;
+  function notify(name){
+    toastText.innerHTML = '<b></b> llega pronto. Todavía no está disponible.';
+    toastText.firstChild.textContent = name;
+    toast.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function(){ toast.classList.remove('show'); }, 2600);
+  }
+  document.querySelectorAll('.mode-locked').forEach(function(card){
+    card.addEventListener('click', function(e){
+      e.preventDefault();
+      card.classList.remove('nope'); void card.offsetWidth; card.classList.add('nope');
+      notify(card.getAttribute('data-mode'));
+    });
+    card.addEventListener('animationend', function(ev){ if(ev.animationName === 'nope') card.classList.remove('nope'); });
+  });
+})();
+</script>
+</body>
+</html>
