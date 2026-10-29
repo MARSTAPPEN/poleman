@@ -1,0 +1,13 @@
+{
+  "name": "poleman-tests",
+  "private": true,
+  "description": "Pruebas de desarrollo (no se despliegan). npm install && npm run regression -- <base.jsonl>",
+  "scripts": {
+    "grid": "node grid.js",
+    "regression": "node regression.js ../carrera.html out.jsonl 14",
+    "changes": "node team-changes.js"
+  },
+  "devDependencies": {
+    "jsdom": "24"
+  }
+}
