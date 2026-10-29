@@ -1,0 +1,192 @@
+window.SEASON_DATA = window.SEASON_DATA || {};
+/* =====================================================================================
+   TEMPORADA 2020 — parrilla real al arrancar el Mundial 2020 (carga hecha de memoria: revisar).
+   Escala igual a 2026 (campeón dominante ~95-98, titular promedio ~77-84, equipo puntero 88-96, de fondo ~50).
+   Estructura y campos: ver data/season-template.js. Lista legible para revisar: docs/season-2020.md
+   · Los ids son los MISMOS que en 2026 (linaje): aston = Racing Point→Aston Martin, alpine = Renault→Alpine,
+     racingbulls = AlphaTauri→RB→Racing Bulls, sauber = Alfa Romeo→Kick Sauber→Audi.
+   · eras incluye todos los renombres reales hasta 2026 (los usa el modo "cambios reales").
+   · Falta el logo de varias eras (Racing Point, Renault, AlphaTauri, RB, Alfa Romeo, Kick Sauber): se muestran
+     las iniciales hasta que se agreguen en assets/logos/f1/ y se complete el campo logo.
+   · entries: Cadillac se suma en 2026 (solo en modo real). Las bajas de equipos llegan con la carga de 2010.
+   ===================================================================================== */
+SEASON_DATA[2020] = {
+  year: 2020,
+  seatsPerTeam: 2,
+  f1Races: 17,              // el calendario 2020 real fue de 17 carreras
+  topTeamTier: 85,
+  gridRefTier: 73,          // promedio de tiers de la parrilla (~72,5)
+  latePoolFromSeason: 10,
+  surpriseTeams: ["williams", "sauber", "alpine", "aston"],
+  ladder: [
+    {id:"f4", name:"Fórmula 4", short:"F4", races:9, tierBase:38, fieldSize:30},
+    {id:"fr", name:"Formula Regional", short:"FR", races:11, tierBase:48, fieldSize:30},
+    {id:"f3", name:"FIA Fórmula 3", short:"F3", races:13, tierBase:58, fieldSize:30},
+    {id:"f2", name:"FIA Fórmula 2", short:"F2", races:14, tierBase:66, fieldSize:22},
+  ],
+  baseChampions: [   // palmarés real ANTES de 2020
+    {name:"M. Schumacher", nat:"de", titles:7, aiKey:null},
+    {name:"L. Hamilton", nat:"gb", titles:6, aiKey:"L. Hamilton"},
+    {name:"J.M. Fangio", nat:"ar", titles:5, aiKey:null},
+    {name:"S. Vettel", nat:"de", titles:4, aiKey:"S. Vettel"},
+    {name:"A. Prost", nat:"fr", titles:4, aiKey:null},
+  ],
+  teams: [
+    { id:"williams", tier:50, iconic:true,
+      eras:[ {from:2020, name:"Williams", color:"#00A0DE", logo:"f1/williams.svg.svg"} ],
+      drivers:[
+        {name:"G. Russell", age:22, ovr:80, potRange:[88, 92], retireRange:[38, 44], nat:"gb", rep:48},
+        {name:"N. Latifi", age:24, ovr:70, potRange:[72, 76], retireRange:[28, 33], nat:"ca", rep:28},
+      ] },
+    { id:"haas", tier:53,
+      eras:[ {from:2020, name:"Haas", color:"#B6BABD", logo:"f1/haas.svg.svg"} ],
+      drivers:[
+        {name:"R. Grosjean", age:33, ovr:77, potRange:[77, 78], retireRange:[34, 37], nat:"fr", rep:52},
+        {name:"K. Magnussen", age:27, ovr:77, potRange:[77, 79], retireRange:[32, 36], nat:"dk", rep:50},
+      ] },
+    { id:"sauber", tier:56,
+      eras:[ {from:2020, name:"Alfa Romeo", color:"#9B0000", logo:null}, {from:2024, name:"Kick Sauber", color:"#52E252", logo:null}, {from:2026, name:"Audi", color:"#BB0A30", logo:"f1/audi.svg.svg"} ],
+      drivers:[
+        {name:"K. Räikkönen", age:40, ovr:80, potRange:[80, 81], retireRange:[41, 44], nat:"fi", rep:88},
+        {name:"A. Giovinazzi", age:26, ovr:75, potRange:[76, 80], retireRange:[29, 34], nat:"it", rep:38},
+      ] },
+    { id:"racingbulls", tier:70,
+      eras:[ {from:2020, name:"AlphaTauri", color:"#2B4562", logo:null}, {from:2024, name:"RB", color:"#1660AD", logo:null}, {from:2025, name:"Racing Bulls", color:"#1660AD", logo:"f1/racingbulls.svg.svg"} ],
+      drivers:[
+        {name:"D. Kvyat", age:25, ovr:77, potRange:[77, 80], retireRange:[30, 36], nat:"ru", rep:48},
+        {name:"Pierre Gasly", age:24, ovr:80, potRange:[81, 85], retireRange:[34, 39], nat:"fr", rep:54},
+      ] },
+    { id:"ferrari", tier:74, iconic:true,
+      eras:[ {from:2020, name:"Ferrari", color:"#DC0000", logo:"f1/ferrari.svg.svg"} ],
+      drivers:[
+        {name:"S. Vettel", age:32, ovr:86, potRange:[86, 88], retireRange:[38, 43], nat:"de", rep:92},
+        {name:"C. Leclerc", age:22, ovr:89, potRange:[92, 95], retireRange:[38, 45], nat:"mc", rep:74},
+      ] },
+    { id:"alpine", tier:77,
+      eras:[ {from:2020, name:"Renault", color:"#FFF500", logo:null}, {from:2021, name:"Alpine", color:"#0090FF", logo:"f1/alpine.svg.svg"} ],
+      drivers:[
+        {name:"D. Ricciardo", age:30, ovr:87, potRange:[87, 88], retireRange:[36, 41], nat:"au", rep:78},
+        {name:"E. Ocon", age:23, ovr:81, potRange:[82, 85], retireRange:[34, 39], nat:"fr", rep:52},
+      ] },
+    { id:"mclaren", tier:79, iconic:true,
+      eras:[ {from:2020, name:"McLaren", color:"#FF8000", logo:"f1/mclaren.svg.svg"} ],
+      drivers:[
+        {name:"Carlos Sainz", age:25, ovr:84, potRange:[85, 88], retireRange:[37, 43], nat:"es", rep:62},
+        {name:"Lando Norris", age:20, ovr:84, potRange:[92, 96], retireRange:[38, 45], nat:"gb", rep:52},
+      ] },
+    { id:"aston", tier:80,
+      eras:[ {from:2020, name:"Racing Point", color:"#F596C8", logo:null}, {from:2021, name:"Aston Martin", color:"#00665E", logo:"f1/astonmartin.svg.svg"} ],
+      drivers:[
+        {name:"Sergio Pérez", age:30, ovr:83, potRange:[84, 86], retireRange:[36, 41], nat:"mx", rep:66},
+        {name:"Lance Stroll", age:21, ovr:73, potRange:[74, 78], retireRange:[33, 42], nat:"ca", rep:36},
+      ] },
+    { id:"redbull", tier:88, iconic:true,
+      eras:[ {from:2020, name:"Red Bull", color:"#3671C6", logo:"f1/redbull.svg.svg"} ],
+      drivers:[
+        {name:"M. Verstappen", age:22, ovr:95, potRange:[96, 99], retireRange:[37, 45], nat:"nl", rep:88},
+        {name:"Alex Albon", age:23, ovr:78, potRange:[80, 84], retireRange:[34, 38], nat:"th", rep:50},
+      ] },
+    { id:"mercedes", tier:96, iconic:true,
+      eras:[ {from:2020, name:"Mercedes", color:"#00D2BE", logo:"f1/mercedes.svg.svg"} ],
+      drivers:[
+        {name:"L. Hamilton", age:35, ovr:98, potRange:[98, 99], retireRange:[40, 47], nat:"gb", rep:98},
+        {name:"V. Bottas", age:30, ovr:85, potRange:[86, 87], retireRange:[36, 41], nat:"fi", rep:68},
+      ] },
+  ],
+  entries: [   // altas reales de equipos (las aplica el modo "cambios reales")
+    {year:2026, team:{id:"cadillac", tier:50, iconic:true, eras:[{from:2026, name:"Cadillac", color:"#C9A227", logo:"f1/cadillac.svg.svg"}]}},
+  ],
+  reservePool: [   // cantera libre al arrancar 2020 (exPiloto:true = ya corrió en F1)
+    {name:"N. Hülkenberg", age:32, ovr:80, potRange:[80, 82], retireRange:[36, 41], nat:"de", rep:58, exPiloto:true, targetTeams:["alpine", "aston", "sauber"]},
+    {name:"R. Kubica", age:35, ovr:70, potRange:[70, 72], retireRange:[37, 41], nat:"pl", rep:60, exPiloto:true, targetTeams:["sauber", "williams"]},
+    {name:"S. Vandoorne", age:28, ovr:76, potRange:[76, 80], retireRange:[33, 38], nat:"be", rep:46, exPiloto:true, targetTeams:["alpine", "williams"]},
+    {name:"M. Ericsson", age:29, ovr:72, potRange:[72, 75], retireRange:[33, 38], nat:"se", rep:34, exPiloto:true, targetTeams:["haas", "sauber"]},
+    {name:"S. Sirotkin", age:24, ovr:71, potRange:[72, 76], retireRange:[30, 35], nat:"ru", rep:32, exPiloto:true, targetTeams:["williams", "haas"]},
+    {name:"B. Hartley", age:30, ovr:70, potRange:[70, 72], retireRange:[33, 37], nat:"nz", rep:34, exPiloto:true, targetTeams:["racingbulls", "haas"]},
+    {name:"P. Fittipaldi", age:23, ovr:68, potRange:[74, 78], retireRange:[32, 37], nat:"br", rep:30, targetTeams:["haas"]},
+    {name:"C. Ilott", age:21, ovr:72, potRange:[83, 87], retireRange:[34, 40], nat:"gb", rep:36, targetTeams:["sauber", "haas"]},
+    {name:"Mick Schumacher", age:20, ovr:72, potRange:[85, 90], retireRange:[36, 42], nat:"de", rep:58, targetTeams:["haas", "sauber", "ferrari"]},
+    {name:"Yuki Tsunoda", age:19, ovr:70, potRange:[86, 90], retireRange:[36, 42], nat:"jp", rep:40, targetTeams:["racingbulls", "redbull"]},
+    {name:"N. Mazepin", age:21, ovr:66, potRange:[72, 77], retireRange:[30, 34], nat:"ru", rep:30, targetTeams:["haas"]},
+    {name:"C. Lundgaard", age:18, ovr:66, potRange:[84, 88], retireRange:[36, 41], nat:"dk", rep:30, targetTeams:["alpine", "sauber"]},
+    {name:"J. Aitken", age:24, ovr:71, potRange:[75, 79], retireRange:[32, 36], nat:"gb", rep:30, targetTeams:["williams"]},
+    {name:"Nyck de Vries", age:25, ovr:76, potRange:[80, 85], retireRange:[34, 39], nat:"nl", rep:42, targetTeams:["williams", "racingbulls", "alpine"]},
+    {name:"R. Shwartzman", age:20, ovr:71, potRange:[84, 88], retireRange:[35, 40], nat:"ru", rep:34, targetTeams:["ferrari", "sauber"]},
+    {name:"Zhou Guanyu", age:20, ovr:70, potRange:[78, 83], retireRange:[33, 38], nat:"cn", rep:34, targetTeams:["alpine", "sauber"]},
+    {name:"J. Vips", age:19, ovr:67, potRange:[83, 87], retireRange:[34, 39], nat:"ee", rep:28, targetTeams:["racingbulls", "redbull"]},
+    {name:"F. Drugovich", age:19, ovr:66, potRange:[80, 85], retireRange:[34, 38], nat:"br", rep:28, targetTeams:["aston", "racingbulls"]},
+    {name:"Oscar Piastri", age:18, ovr:68, potRange:[92, 97], retireRange:[37, 45], nat:"au", rep:32, targetTeams:["alpine", "mclaren"]},
+    {name:"T. Pourchaire", age:16, ovr:62, potRange:[86, 91], retireRange:[36, 42], nat:"fr", rep:24, targetTeams:["sauber"]},
+    {name:"Liam Lawson", age:18, ovr:66, potRange:[85, 89], retireRange:[35, 39], nat:"nz", rep:28, targetTeams:["racingbulls", "redbull"]},
+    {name:"D. Hauger", age:16, ovr:60, potRange:[86, 91], retireRange:[36, 42], nat:"no", rep:22, targetTeams:["redbull", "racingbulls"]},
+    {name:"L. Sargeant", age:19, ovr:64, potRange:[78, 83], retireRange:[33, 38], nat:"us", rep:24, targetTeams:["williams"]},
+    {name:"M. Armstrong", age:19, ovr:66, potRange:[80, 84], retireRange:[33, 38], nat:"nz", rep:24, targetTeams:["ferrari", "mclaren"]},
+  ],
+  latePool: [   // refuerzo tardío (ficticios): se reutiliza el de 2026
+    {name:"Mateo Leclerc", age:20, ovr:72, potRange:[81, 86], retireRange:[37, 39], rep:50, nat:"mc", targetTeams:["ferrari"]},
+    {name:"L. Verstappen", age:19, ovr:70, potRange:[80, 85], retireRange:[35, 37], rep:50, nat:"nl", targetTeams:["redbull"]},
+    {name:"James Hunt-Lauda", age:21, ovr:77, potRange:[83, 90], retireRange:[33, 35], rep:50, nat:"gb", targetTeams:[]},
+    {name:"Schumacher-Stewart", age:23, ovr:69, potRange:[80, 84], retireRange:[36, 38], rep:50, nat:"de", targetTeams:[]},
+    {name:"Zeta Zalazar", age:23, ovr:75, potRange:[80, 87], retireRange:[36, 38], rep:50, nat:"ar", targetTeams:["ferrari"]},
+    {name:"B. Robledo", age:23, ovr:69, potRange:[80, 84], retireRange:[34, 38], rep:50, nat:"it", targetTeams:[]},
+    {name:"Sonny Hayes", age:32, ovr:78, potRange:[80, 84], retireRange:[36, 39], rep:50, nat:"us", targetTeams:[]},
+    {name:"Annes Notrya", age:22, ovr:85, potRange:[87, 93], retireRange:[36, 38], rep:50, nat:"br", targetTeams:[]},
+    {name:"G. Mazzacane", age:22, ovr:79, potRange:[87, 93], retireRange:[36, 39], rep:50, nat:"ar", targetTeams:[]},
+    {name:"Nalian Lotín", age:26, ovr:70, potRange:[82, 88], retireRange:[36, 40], rep:50, nat:"fr", targetTeams:[]},
+    {name:"T. Inoue-Kobayashi", age:16, ovr:65, potRange:[75, 78], retireRange:[20, 23], rep:50, nat:"jp", targetTeams:[]},
+    {name:"Alcides Fangio", age:30, ovr:82, potRange:[83, 85], retireRange:[38, 40], rep:50, nat:"ar", targetTeams:[]},
+    {name:"N. Mazepin II", age:23, ovr:62, potRange:[70, 76], retireRange:[30, 32], rep:50, nat:"ru", targetTeams:[]},
+    {name:"F. Briatore", age:24, ovr:79, potRange:[80, 86], retireRange:[35, 37], rep:50, nat:"it", targetTeams:[]},
+    {name:"Mardenborough", age:21, ovr:74, potRange:[87, 91], retireRange:[37, 39], rep:50, nat:"gb", targetTeams:[]},
+    {name:"Castolo", age:38, ovr:73, potRange:[89, 92], retireRange:[39, 45], rep:50, nat:"br", targetTeams:[]},
+    {name:"Devon Butler", age:24, ovr:73, potRange:[79, 83], retireRange:[39, 45], rep:50, nat:"gb", targetTeams:[]},
+    {name:"C. Akkerman", age:24, ovr:73, potRange:[81, 85], retireRange:[34, 36], rep:50, nat:"nl", targetTeams:[]},
+    {name:"Callie Mayer", age:20, ovr:72, potRange:[87, 91], retireRange:[37, 39], rep:50, nat:"at", targetTeams:[]},
+    {name:"M. Filippis II", age:20, ovr:73, potRange:[87, 91], retireRange:[37, 39], rep:50, nat:"it", targetTeams:[]},
+    {name:"L. Lombardi", age:21, ovr:72, potRange:[85, 89], retireRange:[36, 38], rep:50, nat:"it", targetTeams:[]},
+  ],
+  juniorTeams: {
+    f4: [
+      {name:"VAR", color:"#d61f2c", logo:"f4/var.svg.svg"},
+      {name:"Mücke", color:"#1c1c1c", logo:"f4/mucke.svg.svg"},
+      {name:"US Racing", color:"#0057a8", logo:"f4/usracing.svg.svg"},
+      {name:"R-ace GP", color:"#e2001a", logo:"f4/racegp.svg.svg"},
+      {name:"Prema", color:"#c8102e", logo:"f4/perma.svg.svg"},
+      {name:"Jenzer", color:"#d5001c", logo:null},
+    ],
+    fr: [
+      {name:"Prema", color:"#c8102e", logo:"fr/perma.svg.svg"},
+      {name:"MP", color:"#f5a300", logo:"fr/mpmotorsport.svg.svg"},
+      {name:"VAR", color:"#d61f2c", logo:"fr/var.svg.svg"},
+      {name:"R-ace GP", color:"#e2001a", logo:"fr/racegp.svg.svg"},
+      {name:"Arden", color:"#00954c", logo:"fr/arden.svg.svg"},
+      {name:"G4", color:"#1c1c1c", logo:"fr/g4racing.svg.svg"},
+      {name:"ART", color:"#e2001a", logo:"f3/art.svg.svg"},
+    ],
+    f3: [
+      {name:"Prema", color:"#c8102e", logo:"f3/perma.svg.svg"},
+      {name:"Trident", color:"#00263a", logo:"f3/trident.svg.svg"},
+      {name:"ART", color:"#e2001a", logo:"f3/art.svg.svg"},
+      {name:"Campos", color:"#d0021b", logo:"f3/camposracing.svg.svg"},
+      {name:"Hitech", color:"#0a0a0a", logo:"f3/hitech.svg.svg"},
+      {name:"MP", color:"#f5a300", logo:"fr/mpmotorsport.svg.svg"},
+      {name:"Carlin", color:"#0b3c7a", logo:null},
+      {name:"Charouz", color:"#1c75bc", logo:null},
+      {name:"HWA", color:"#2b2b2b", logo:null},
+      {name:"Jenzer", color:"#d5001c", logo:null},
+    ],
+    f2: [
+      {name:"Prema", color:"#c8102e", logo:"f2/prema.svg.svg"},
+      {name:"ART", color:"#e2001a", logo:"f2/art.svg.svg"},
+      {name:"Campos", color:"#d0021b", logo:"f2/camposracing.svg.svg"},
+      {name:"DAMS", color:"#0033a0", logo:"f2/dams.svg.svg"},
+      {name:"MP", color:"#f5a300", logo:"f2/mpmotorsport.svg.svg"},
+      {name:"Virtuosi", color:"#f5a300", logo:"f2/virtuosi.svg.svg"},
+      {name:"Carlin", color:"#0b3c7a", logo:null},
+      {name:"Charouz", color:"#1c75bc", logo:null},
+      {name:"HWA", color:"#2b2b2b", logo:null},
+      {name:"Hitech", color:"#0a0a0a", logo:"f3/hitech.svg.svg"},
+      {name:"Trident", color:"#00263a", logo:"f3/trident.svg.svg"},
+    ],
+  }
+};
