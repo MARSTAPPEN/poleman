@@ -605,7 +605,12 @@ html{touch-action:manipulation;}
 @keyframes fadeIn{from{opacity:0; transform:translateY(6px);} to{opacity:1; transform:translateY(0);}}
 
 .footer-note{text-align:center; color:var(--muted2); font-size:11.5px; margin-top:36px;}
+.opt-row{display:flex; align-items:center; gap:10px; margin:14px 0 4px; font-size:14px; color:var(--text); cursor:pointer; user-select:none;}
+.opt-row input{accent-color:var(--red); width:18px; height:18px; margin:0; cursor:pointer;}
+.opt-hint{font-size:12px; color:var(--muted); line-height:1.45; max-width:430px; min-height:34px;}
 </style>
+<script src="data/season-2026.js"></script>
+<script src="data/season-2020.js"></script>
 </head>
 <body>
 <div class="app" id="app"></div>
@@ -692,84 +697,90 @@ function getHelmetColors(country){
 }
 
 // ladder of junior categories, in order
-const LADDER = [
- {id:'f4', name:'Fórmula 4', races:9, tierBase:38},
- {id:'fr', name:'Formula Regional', races:11, tierBase:48},
- {id:'f3', name:'FIA Fórmula 3', races:13, tierBase:58},
- {id:'f2', name:'FIA Fórmula 2', races:14, tierBase:66},
-];
+/* =====================================================
+   BASE DE DATOS POR TEMPORADA  (data/season-AAAA.js)
+   - Cada archivo registra SEASON_DATA[año] con: parrilla de F1 (equipos + pilotos), escalera de
+     categorías juniors y sus equipos, cantera libre, palmarés y parámetros de la época.
+   - loadSeason(año) vuelca esos datos a las variables globales que usa el resto del juego. Para
+     sumar una temporada NO hay que tocar la lógica: ver data/season-template.js y README.md.
+   - Equipos: la identidad estable es team.id (linaje). El nombre/color/logo salen de team.eras según
+     el año calendario (ver eraAt / teamIdentityAt). TODA la lógica usa el id, nunca el nombre.
+===================================================== */
+const DEFAULT_SEASON = 2026;
+const LOGO_BASE = 'assets/logos/';
+let LADDER = [], CATEGORY_SHORT = {f1:'F1'}, FIELD_SIZE = {};
+let F1_FIELD_SIZE = 20, F1_RACES = 22, SEATS_PER_TEAM = 2;
+let TOP_TEAM_TIER = 85, GRID_REF_TIER = 74, LATE_POOL_FROM_SEASON = 10;
+let F1_TEAMS = [], SURPRISE_TEAMS = [], JUNIOR_TEAMS = {};
+let F1_ENTRIES = [], MAX_TEAMS = 12; // altas reales por año (solo modo real) / tope de equipos para altas aleatorias
+let F1_DRIVERS_SEED = {}, F1_RESERVE_POOL = [], F1_LATE_GAME_POOL = [], BASE_CHAMPIONS = [];
+let TEAM_DATA = {}; // id -> definición completa del equipo (con todas sus eras)
+
+// Era vigente de un equipo en un año: la última cuyo "from" ya llegó (la primera si el año es anterior a todas).
+function eraAt(team, year){
+ let e = team.eras[0];
+ team.eras.forEach(x=>{ if(x.from <= year) e = x; });
+ return e;
+}
+function teamIdentityAt(id, year){
+ const td = TEAM_DATA[id];
+ if(!td) return null;
+ const e = eraAt(td, year);
+ return {name:e.name, color:e.color, logo:e.logo ? LOGO_BASE + e.logo : null};
+}
+// Carga la temporada "year" en las variables globales. Devuelve false si no existe su archivo de datos.
+function loadSeason(year){
+ const D = window.SEASON_DATA && window.SEASON_DATA[year];
+ if(!D) return false;
+ const logo = p => p ? LOGO_BASE + p : null;
+ LADDER = D.ladder.map(c=>({id:c.id, name:c.name, races:c.races, tierBase:c.tierBase}));
+ CATEGORY_SHORT = {f1:'F1'}; FIELD_SIZE = {};
+ D.ladder.forEach(c=>{ CATEGORY_SHORT[c.id] = c.short; FIELD_SIZE[c.id] = c.fieldSize; });
+ SEATS_PER_TEAM = D.seatsPerTeam || 2;
+ F1_RACES = D.f1Races || 22;
+ F1_FIELD_SIZE = D.f1FieldSize || D.teams.length * SEATS_PER_TEAM;
+ TOP_TEAM_TIER = D.topTeamTier; GRID_REF_TIER = D.gridRefTier;
+ LATE_POOL_FROM_SEASON = (D.latePoolFromSeason != null) ? D.latePoolFromSeason : 10;
+ SURPRISE_TEAMS = (D.surpriseTeams || []).slice();
+ TEAM_DATA = {};
+ F1_ENTRIES = (D.entries || []).map(en=>({year:en.year, team:en.team}));
+ F1_ENTRIES.forEach(en=>{ TEAM_DATA[en.team.id] = en.team; });
+ MAX_TEAMS = D.maxTeams || Math.max(12, D.teams.length);
+ F1_TEAMS = D.teams.map(tm=>{
+   TEAM_DATA[tm.id] = tm;
+   const e = eraAt(tm, year);
+   return {id:tm.id, name:e.name, tier:tm.tier, color:e.color, logo:logo(e.logo), iconic:!!tm.iconic};
+ });
+ F1_DRIVERS_SEED = {};
+ D.teams.forEach(tm=>{ F1_DRIVERS_SEED[tm.id] = tm.drivers.map(d=>({...d})); });
+ F1_RESERVE_POOL = (D.reservePool || []).map(d=>({...d}));
+ F1_LATE_GAME_POOL = (D.latePool || []).map(d=>({...d}));
+ JUNIOR_TEAMS = {};
+ Object.keys(D.juniorTeams).forEach(cat=>{ JUNIOR_TEAMS[cat] = D.juniorTeams[cat].map(tm=>({name:tm.name, color:tm.color, logo:logo(tm.logo)})); });
+ BASE_CHAMPIONS = (D.baseChampions || []).map(c=>({...c}));
+ return true;
+}
+loadSeason(DEFAULT_SEASON);
 // v6.2: etiqueta corta para los indicadores compactos (tag de la ficha del piloto, tcat de las
 // tarjetas de oferta) -- el nombre completo (LADDER[].name / "Fórmula 1") se sigue usando en prosa
 // ("A los 28 seguís en Fórmula 2..."), esto es solo para no alargar innecesariamente esas pastillas.
-const CATEGORY_SHORT = {f4:'F4', fr:'Fórmula Regional', f3:'F3', f2:'F2', f1:'F1'};
 function currentCategoryShortLabel(){
  if(S.ladderIdx < LADDER.length) return CATEGORY_SHORT[LADDER[S.ladderIdx].id];
  return CATEGORY_SHORT.f1;
 }
 
 // tamaño aproximado de la grilla por categoría, usado solo para estimar la posición final en el campeonato
-const FIELD_SIZE = {f4:30, fr:30, f3:30, f2:22};
-const F1_FIELD_SIZE = 20;
 const POINTS_TABLE = [25,18,15,12,10,8,6,4,2,1]; // posiciones 1ª a 10ª
 
 
 // base path for team logos (SVG files from assets/logos/<categoria>/)
-const LOGO_BASE = 'assets/logos/';
 
-const JUNIOR_TEAMS = {
- f4:[
-   {name:"Van Amersfoort Racing", color:"#d61f2c", logo:LOGO_BASE+"f4/var.svg.svg"},
-   {name:"Mücke Motorsport", color:"#1c1c1c", logo:LOGO_BASE+"f4/mucke.svg.svg"},
-   {name:"US Racing", color:"#0057a8", logo:LOGO_BASE+"f4/usracing.svg.svg"},
-   {name:"R-ace GP", color:"#e2001a", logo:LOGO_BASE+"f4/racegp.svg.svg"},
-   {name:"Prema Racing", color:"#c8102e", logo:LOGO_BASE+"f4/perma.svg.svg"}
- ],
- fr:[
-   {name:"Prema Racing", color:"#c8102e", logo:LOGO_BASE+"fr/perma.svg.svg"},
-   {name:"MP Motorsport", color:"#f5a300", logo:LOGO_BASE+"fr/mpmotorsport.svg.svg"},
-   {name:"Van Amersfoort Racing", color:"#d61f2c", logo:LOGO_BASE+"fr/var.svg.svg"},
-   {name:"R-ace GP", color:"#e2001a", logo:LOGO_BASE+"fr/racegp.svg.svg"},
-   {name:"Arden Motorsport", color:"#00954c", logo:LOGO_BASE+"fr/arden.svg.svg"},
-   {name:"G4 Racing", color:"#1c1c1c", logo:LOGO_BASE+"fr/g4racing.svg.svg"}
- ],
- f3:[
-   {name:"Prema Racing", color:"#c8102e", logo:LOGO_BASE+"f3/perma.svg.svg"},
-   {name:"Trident", color:"#00263a", logo:LOGO_BASE+"f3/trident.svg.svg"},
-   {name:"ART Grand Prix", color:"#e2001a", logo:LOGO_BASE+"f3/art.svg.svg"},
-   {name:"Campos Racing", color:"#d0021b", logo:LOGO_BASE+"f3/camposracing.svg.svg"},
-   {name:"Hitech TGR", color:"#0a0a0a", logo:LOGO_BASE+"f3/hitech.svg.svg"},
-   {name:"Rodin Motorsport", color:"#0a3d62", logo:LOGO_BASE+"f3/rodin.svg.svg"}
- ],
- f2:[
-   {name:"Prema Racing", color:"#c8102e", logo:LOGO_BASE+"f2/prema.svg.svg"},
-   {name:"ART Grand Prix", color:"#e2001a", logo:LOGO_BASE+"f2/art.svg.svg"},
-   {name:"Campos Racing", color:"#d0021b", logo:LOGO_BASE+"f2/camposracing.svg.svg"},
-   {name:"DAMS Lucas Oil", color:"#0033a0", logo:LOGO_BASE+"f2/dams.svg.svg"},
-   {name:"MP Motorsport", color:"#f5a300", logo:LOGO_BASE+"f2/mpmotorsport.svg.svg"},
-   {name:"Virtuosi Racing", color:"#f5a300", logo:LOGO_BASE+"f2/virtuosi.svg.svg"},
-   {name:"Rodin Motorsport", color:"#0a3d62", logo:LOGO_BASE+"f2/rodin.svg.svg"}
- ]
-};
 
 // Identidad histórica: nivel base permanente por escudería (Grupo A: RB/Mercedes/Ferrari/McLaren, muy parejos;
 // Grupo B: Racing Bulls; Grupo C: Alpine/Audi/Haas; Grupo D: Williams/Aston Martin/Cadillac). Este valor
 // NUNCA se modifica durante la partida — es el ancla hacia la que tira evolveF1Team().
-const F1_TEAMS = [
- {name:"Cadillac", tier:50, color:"#C9A227", logo:LOGO_BASE+"f1/cadillac.svg.svg"},
- {name:"Williams", tier:53, color:"#00A0DE", logo:LOGO_BASE+"f1/williams.svg.svg"},
- {name:"Aston Martin", tier:56, color:"#00665E", logo:LOGO_BASE+"f1/astonmartin.svg.svg"},
- {name:"Haas", tier:62, color:"#B6BABD", logo:LOGO_BASE+"f1/haas.svg.svg"},
- {name:"Audi", tier:64, color:"#BB0A30", logo:LOGO_BASE+"f1/audi.svg.svg"},
- {name:"Alpine", tier:66, color:"#0090FF", logo:LOGO_BASE+"f1/alpine.svg.svg"},
- {name:"Racing Bulls", tier:72, color:"#1660AD", logo:LOGO_BASE+"f1/racingbulls.svg.svg"},
- {name:"McLaren", tier:90, color:"#FF8000", logo:LOGO_BASE+"f1/mclaren.svg.svg"},
- {name:"Ferrari", tier:91, color:"#DC0000", logo:LOGO_BASE+"f1/ferrari.svg.svg"},
- {name:"Mercedes", tier:92, color:"#00D2BE", logo:LOGO_BASE+"f1/mercedes.svg.svg"},
- {name:"Red Bull Racing", tier:93, color:"#3671C6", logo:LOGO_BASE+"f1/redbull.svg.svg"}
-];
 // Equipos "históricamente perseguidores" que pueden protagonizar un proyecto sorpresa ocasional
 // (podio, título o una pequeña era), sin llegar a dominar una década — ver evolveF1Teams().
-const SURPRISE_TEAMS = ["Williams", "Audi", "Aston Martin", "Alpine"];
 
 /* =====================================================
    ROL DEL PILOTO EN F1: RESERVA / Nº2 / Nº1 (v6)
@@ -779,7 +790,6 @@ const SURPRISE_TEAMS = ["Williams", "Audi", "Aston Martin", "Alpine"];
    - TOP_TEAM_TIER separa a los 4 grandes (los únicos que piden "nivel de titular" antes de subirte al
      auto de carrera) del resto, que puede ofrecer un asiento titular directo si el piloto les suma.
 ===================================================== */
-const TOP_TEAM_TIER = 85;
 const ROLE_LABEL = {reserva:'Piloto Reserva', segundo:'Piloto Nº2', primero:'Piloto Nº1'};
 const ROLE_SHORT  = {reserva:'RES', segundo:'P2', primero:'P1'};
 // v6.1: retoque visual -- el rol se muestra como texto plano en negrita (sin fondo tipo chip), un
@@ -795,7 +805,7 @@ function deriveOfferedRole(team){
  if(team.tier >= TOP_TEAM_TIER && readiness < team.tier - 9){
    return 'reserva';
  }
- const aiRoster = getTeamAIDrivers(team.name);
+ const aiRoster = getTeamAIDrivers(team.id);
  if(!aiRoster.length) return 'primero';
  const bestAI = Math.max(...aiRoster.map(d=>d.ovr + d.reputacion*0.12));
  return readiness >= bestAI ? 'primero' : 'segundo';
@@ -824,19 +834,6 @@ function deriveOfferedRole(team){
 // v3.5b: potRange y retireRange reemplazan a los valores fijos de potencial/retiro. Cada uno es un
 // [min,max]: en initAIDrivers() se sortea un valor puntual dentro de ese rango para CADA piloto en
 // particular (ver randRange()), en vez de aplicar la misma fórmula genérica a todos.
-const F1_DRIVERS_SEED = {
- "Ferrari":       [{name:"C. Leclerc", age:28, ovr:91, potRange:[92,94], retireRange:[39,45], nat:"mc", rep:75}, {name:"L. Hamilton", age:41, ovr:90, potRange:[91,92], retireRange:[46,49], nat:"gb", rep:98}],
- "Mercedes":      [{name:"G. Russell", age:28, ovr:89, potRange:[91,94], retireRange:[39,44], nat:"gb", rep:72}, {name:"Kimi Antonelli", age:20, ovr:83, potRange:[92,99], retireRange:[36,47], nat:"it", rep:67}],
- "McLaren":       [{name:"Lando Norris", age:26, ovr:93, potRange:[94,95], retireRange:[38,45], nat:"gb", rep:82}, {name:"Oscar Piastri", age:25, ovr:91, potRange:[94,97], retireRange:[37,45], nat:"au", rep:78}],
- "Red Bull Racing":[{name:"M. Verstappen", age:28, ovr:97, potRange:[97,99], retireRange:[39,45], nat:"nl", rep:98}, {name:"Isack Hadjar", age:21, ovr:76, potRange:[85,88], retireRange:[38,39], nat:"fr", rep:48}],
- "Williams":      [{name:"Carlos Sainz", age:31, ovr:80, potRange:[83,85], retireRange:[39,44], nat:"es", rep:70}, {name:"Alex Albon", age:30, ovr:79, potRange:[84,87], retireRange:[36,39], nat:"th", rep:60}],
- "Aston Martin":  [{name:"F. Alonso", age:44, ovr:87, potRange:[88,89], retireRange:[48,52], nat:"es", rep:88}, {name:"Lance Stroll", age:27, ovr:70, potRange:[71,72], retireRange:[30,49], nat:"ca", rep:30}],
- "Audi":          [{name:"N. Hülkenberg", age:38, ovr:80, potRange:[81,82], retireRange:[40,46], nat:"de", rep:58}, {name:"G. Bortoleto", age:21, ovr:76, potRange:[87,89], retireRange:[36,45], nat:"br", rep:48}],
- "Alpine":        [{name:"Pierre Gasly", age:30, ovr:79, potRange:[81,85], retireRange:[36,39], nat:"fr", rep:55}, {name:"F. Colapinto", age:23, ovr:78, potRange:[86,94], retireRange:[39,45], nat:"ar", rep:54}],
- "Haas":          [{name:"E. Ocon", age:29, ovr:78, potRange:[80,84], retireRange:[36,39], nat:"fr", rep:52}, {name:"O. Bearman", age:21, ovr:75, potRange:[87,91], retireRange:[36,43], nat:"gb", rep:50}],
- "Racing Bulls":  [{name:"Liam Lawson", age:24, ovr:74, potRange:[83,87], retireRange:[35,39], nat:"nz", rep:42}, {name:"A. Lindblad", age:18, ovr:68, potRange:[88,92], retireRange:[36,40], nat:"gb", rep:40}],
- "Cadillac":      [{name:"Sergio Pérez", age:36, ovr:81, potRange:[82,85], retireRange:[37,43], nat:"mx", rep:62}, {name:"V. Bottas", age:36, ovr:75, potRange:[76,85], retireRange:[38,44], nat:"fi", rep:60}]
-};
 // La cantera oculta (v3.4): nunca se muestra en ninguna pantalla. fillMarketVacancies() la usa como
 // banco de reemplazos una vez que se agotan los pilotos reales libres (por retiro o por perder el asiento).
 // targetTeams es una preferencia BLANDA: si al cubrir una vacante hay un canterano entre los 3 mejores
@@ -845,59 +842,11 @@ const F1_DRIVERS_SEED = {
 // que el sistema de arquetipos del jugador: probabilidad, no destino escrito.
 // v3.5b: mismo cambio que en F1_DRIVERS_SEED — potRange y retireRange en vez de valores fijos, sorteados
 // individualmente por piloto en initAIDrivers(). Ahora también traen rep (antes todos arrancaban en 50).
-const F1_RESERVE_POOL = [
- {name:"R. Câmara", age:21, ovr:72, potRange:[85,89], retireRange:[37,45], rep:38, nat:"br", targetTeams:["Ferrari","Haas"]},
- {name:"Nikola Tsolov", age:19, ovr:71, potRange:[83,87], retireRange:[37,45], rep:35, nat:"bg", targetTeams:["Red Bull Racing","Racing Bulls"]},
- {name:"Gabriele Minì", age:21, ovr:71, potRange:[82,86], retireRange:[38,43], rep:36, nat:"it", targetTeams:["Alpine"]},
- {name:"Colton Herta", age:26, ovr:76, potRange:[81,85], retireRange:[36,42], rep:55, nat:"us", targetTeams:["Cadillac"]},
- {name:"F. Slater", age:17, ovr:68, potRange:[90,94], retireRange:[38,45], rep:32, nat:"gb", targetTeams:["Mercedes","Williams"]},
- {name:"T. Taponen", age:19, ovr:70, potRange:[85,89], retireRange:[37,41], rep:34, nat:"fi", targetTeams:["Ferrari","Haas"]},
- {name:"U. Ugochukwu", age:19, ovr:69, potRange:[84,88], retireRange:[38,42], rep:33, nat:"us", targetTeams:["McLaren","Williams"]},
- {name:"Noel León", age:21, ovr:68, potRange:[78,82], retireRange:[36,40], rep:30, nat:"mx", targetTeams:["Cadillac"]},
- {name:"Théophile Naël", age:19, ovr:66, potRange:[81,85], retireRange:[39,43], rep:28, nat:"fr", targetTeams:["Alpine"]},
- {name:"Louis Sharp", age:19, ovr:67, potRange:[82,86], retireRange:[37,41], rep:29, nat:"gb", targetTeams:["Racing Bulls","Red Bull Racing"]},
- {name:"N. Varrone", age:25, ovr:73, potRange:[80,88], retireRange:[40,44], rep:42, nat:"ar", targetTeams:["Cadillac"]},
- {name:"M. Colnaghi", age:18, ovr:67, potRange:[88,93], retireRange:[37,44], rep:27, nat:"it", targetTeams:["Racing Bulls","Alpine"]},
- {name:"Simón Bulbarella", age:17, ovr:62, potRange:[78,83], retireRange:[39,43], rep:22, nat:"ar", targetTeams:["Williams"]},
- {name:"Fausto Arnaudo", age:16, ovr:61, potRange:[82,86], retireRange:[38,42], rep:20, nat:"ar", targetTeams:["Racing Bulls"]},
- // Regresos de ex-pilotos (v3.5): libres desde el arranque. exPiloto:true = ya debutaron hace años
- // (a diferencia de la cantera joven de arriba, que todavía no corrió en F1).
- {name:"S. Vettel", age:39, ovr:83, potRange:[83,90], retireRange:[43,47], rep:90, nat:"de", exPiloto:true, targetTeams:["Audi","Aston Martin"]},
- {name:"D. Ricciardo", age:37, ovr:78, potRange:[78,87], retireRange:[40,45], rep:82, nat:"au", exPiloto:true, targetTeams:["Cadillac","Haas"]},
- {name:"Alex Palou", age:29, ovr:82, potRange:[85,88], retireRange:[41,45], rep:75, nat:"es", exPiloto:true, targetTeams:["Williams","Cadillac"]},
- {name:"Mick Schumacher", age:27, ovr:75, potRange:[79,82], retireRange:[38,41], rep:65, nat:"de", exPiloto:true, targetTeams:["Audi","Alpine"]},
- {name:"Nyck de Vries", age:31, ovr:74, potRange:[76,78], retireRange:[38,41], rep:52, nat:"nl", exPiloto:true, targetTeams:["Haas"]},
- // Jessica Hawkins (v3.6): se suma a la cantera regular, libre desde el arranque como el resto de arriba.
- {name:"Jessica Hawkins", age:29, ovr:70, potRange:[76,85], retireRange:[36,40], rep:50, nat:"gb", targetTeams:["Aston Martin"]}
-];
 
 // v3.6: banco de refuerzo tardío. En partidas largas la cantera de arriba (F1_RESERVE_POOL) se puede
 // agotar hacia la temporada 10+ y quedan escuderías sin con quién cubrir una vacante. Este pool -pilotos
 // ficticios/paródicos, nunca gente real- entra al mercado de libres recién a partir de S.seasonNum >= 10
 // (ver injectLateGamePool(), llamada desde runSeasons()). Antes de esa temporada no existen para el juego.
-const F1_LATE_GAME_POOL = [
- {name:"Mateo Leclerc", age:20, ovr:72, potRange:[81,86], retireRange:[37,39], rep:50, nat:"mc", targetTeams:["Ferrari"]},
- {name:"L. Verstappen", age:19, ovr:70, potRange:[80,85], retireRange:[35,37], rep:50, nat:"nl", targetTeams:["Red Bull Racing"]},
- {name:"James Hunt-Lauda", age:21, ovr:77, potRange:[83,90], retireRange:[33,35], rep:50, nat:"gb", targetTeams:[]},
- {name:"Schumacher-Stewart", age:23, ovr:69, potRange:[80,84], retireRange:[36,38], rep:50, nat:"de", targetTeams:[]},
- {name:"Zeta Zalazar", age:23, ovr:75, potRange:[80,87], retireRange:[36,38], rep:50, nat:"ar", targetTeams:["Ferrari"]},
- {name:"B. Robledo", age:23, ovr:69, potRange:[80,84], retireRange:[34,38], rep:50, nat:"it", targetTeams:[]},
- {name:"Sonny Hayes", age:32, ovr:78, potRange:[80,84], retireRange:[36,39], rep:50, nat:"us", targetTeams:[]},
- {name:"Annes Notrya", age:22, ovr:85, potRange:[87,93], retireRange:[36,38], rep:50, nat:"br", targetTeams:[]},
- {name:"G. Mazzacane", age:22, ovr:79, potRange:[87,93], retireRange:[36,39], rep:50, nat:"ar", targetTeams:[]},
- {name:"Nalian Lotín", age:26, ovr:70, potRange:[82,88], retireRange:[36,40], rep:50, nat:"fr", targetTeams:[]},
- {name:"T. Inoue-Kobayashi", age:16, ovr:65, potRange:[75,78], retireRange:[20,23], rep:50, nat:"jp", targetTeams:[]},
- {name:"Alcides Fangio", age:30, ovr:82, potRange:[83,85], retireRange:[38,40], rep:50, nat:"ar", targetTeams:[]},
- {name:"N. Mazepin II", age:23, ovr:62, potRange:[70,76], retireRange:[30,32], rep:50, nat:"ru", targetTeams:[]},
- {name:"F. Briatore", age:24, ovr:79, potRange:[80,86], retireRange:[35,37], rep:50, nat:"it", targetTeams:[]},
- {name:"Mardenborough", age:21, ovr:74, potRange:[87,91], retireRange:[37,39], rep:50, nat:"gb", targetTeams:[]},
- {name:"Castolo", age:38, ovr:73, potRange:[89,92], retireRange:[39,45], rep:50, nat:"br", targetTeams:[]},
- {name:"Devon Butler", age:24, ovr:73, potRange:[79,83], retireRange:[39,45], rep:50, nat:"gb", targetTeams:[]},
- {name:"C. Akkerman", age:24, ovr:73, potRange:[81,85], retireRange:[34,36], rep:50, nat:"nl", targetTeams:[]},
- {name:"Callie Mayer", age:20, ovr:72, potRange:[87,91], retireRange:[37,39], rep:50, nat:"at", targetTeams:[]},
- {name:"M. Filippis II", age:20, ovr:73, potRange:[87,91], retireRange:[37,39], rep:50, nat:"it", targetTeams:[]},
- {name:"L. Lombardi", age:21, ovr:72, potRange:[85,89], retireRange:[36,38], rep:50, nat:"it", targetTeams:[]}
-];
 // Crea el mundo de pilotos IA al arrancar/resetear una partida: mismo motor de atributos
 // ocultos que usa el jugador (generateHiddenAttributes), aplicado individualmente a cada piloto.
 function initAIDrivers(){
@@ -976,7 +925,7 @@ function replenishReservePool(){
 // por partida (S.lateGamePoolInjected evita duplicar los pilotos si se llama de nuevo).
 function injectLateGamePool(){
  if(!S.aiDrivers || S.lateGamePoolInjected) return;
- if((S.seasonNum||0) < 10) return;
+ if((S.seasonNum||0) < LATE_POOL_FROM_SEASON) return;
  F1_LATE_GAME_POOL.forEach(seed=>{
    if(S.aiDrivers[seed.name]) return; // por las dudas, nunca pisar un nombre que ya exista
    const potencialMaximo = clamp(randRange(seed.potRange[0], seed.potRange[1]), seed.ovr, 99);
@@ -1017,15 +966,15 @@ function getTeamAIDrivers(teamName){
 ===================================================== */
 function playerF1Team(){
  if(S.retired || S.ladderIdx < LADDER.length) return null;
- return currentTeamName();
+ return currentTeamId();
 }
 // Plantel completo de una escudería de F1 (pilotos IA + el jugador si está ahí), ordenado por OVR.
 // El orden por OVR ya deja la estructura lista para distinguir "piloto 1 / piloto 2 / reserva" en el
 // futuro (prioridad interna, paciencia del equipo, rival interno, ascenso desde reserva), pero hoy
 // es puramente visual: no tiene ningún efecto de juego.
-function getTeamRosterWithPlayer(teamName){
- const roster = getTeamAIDrivers(teamName).map(d=>({name:d.name, ovr:d.ovr, status:d.status, age:d.age, nat:d.nat, isPlayer:false, role:null}));
- if(playerF1Team()===teamName){
+function getTeamRosterWithPlayer(teamId){
+ const roster = getTeamAIDrivers(teamId).map(d=>({name:d.name, ovr:d.ovr, status:d.status, age:d.age, nat:d.nat, isPlayer:false, role:null}));
+ if(playerF1Team()===teamId){
    const playerNat = (COUNTRIES.find(c=>c[1]===S.country)||[null])[0];
    roster.push({name:S.surname||'Vos', ovr:Math.round(S.ovr), status:'confirmado', age:Math.round(S.age), nat:playerNat, isPlayer:true, role:S.f1Role});
  }
@@ -1096,21 +1045,21 @@ function evolveAIDrivers(){
 
 // Cupo de asientos de IA que tiene una escudería de F1: normalmente 2, pero 1 si el jugador
 // ocupa en este momento uno de esos dos asientos.
-function f1SeatCapacity(teamName){
+function f1SeatCapacity(teamId){
  const playerInF1 = S.ladderIdx >= LADDER.length && !S.retired;
  // v6: si el jugador es piloto RESERVA en este equipo, no ocupa ninguno de los dos asientos de carrera
  // (el equipo se queda con sus 2 titulares de siempre; el jugador es un tercero, extra, en el roster).
- if(playerInF1 && currentTeamName()===teamName && S.f1Role!=='reserva') return 1;
- return 2;
+ if(playerInF1 && currentTeamId()===teamId && S.f1Role!=='reserva') return SEATS_PER_TEAM - 1;
+ return SEATS_PER_TEAM;
 }
 
 // Al fichar el jugador con una escudería de F1, alguien tiene que dejarle el asiento.
 // Sale el más flojo (menor OVR) de los dos pilotos IA que tenía el equipo — el equipo se queda con
 // su mejor piloto y el jugador entra en lugar del otro. Si el equipo ya tenía un asiento vacante
 // (por ejemplo, todavía no se cubrió desde el mercado), no hace falta liberar a nadie.
-function releaseSeatForPlayer(teamName){
- const roster = getTeamAIDrivers(teamName);
- if(roster.length < 2) return;
+function releaseSeatForPlayer(teamId){
+ const roster = getTeamAIDrivers(teamId);
+ if(roster.length < SEATS_PER_TEAM) return;
  const toRelease = [...roster].sort((a,b)=>a.ovr-b.ovr)[0];
  toRelease.team = null;
 }
@@ -1135,9 +1084,9 @@ function fillMarketVacancies(){
  if(!S.aiDrivers) return;
  let vacancies = [];
  F1_TEAMS.forEach(t=>{
-   const cap = f1SeatCapacity(t.name);
-   const have = getTeamAIDrivers(t.name).length;
-   for(let i=0; i<cap-have; i++) vacancies.push(t.name);
+   const cap = f1SeatCapacity(t.id);
+   const have = getTeamAIDrivers(t.id).length;
+   for(let i=0; i<cap-have; i++) vacancies.push(t.id);
  });
  if(!vacancies.length) return;
  vacancies.sort((a,b)=>getF1TeamTier(b)-getF1TeamTier(a));
@@ -1422,7 +1371,7 @@ function trophyRowHTML(titles){
 let S = {
  screen:'home',
  difficulty:'detallada',
- season:2026, // v: temporada elegida en el home -- hoy siempre 2026, el resto del roadmap (ver SEASONS) está bloqueado
+ season:DEFAULT_SEASON, // temporada elegida en el home (año de arranque). Ver SEASONS / selectSeason() / currentYear()
  surname:'', number:10, country:null, countryFilter:'',
  ladderIdx:0, age:16, ovr:50, peakOvr:50, value:100000, peakValue:100000,
  reputacion:50, // 0-100, qué tan cotizado sos en el paddock (no depende solo de ganar, depende de superar expectativas)
@@ -1444,6 +1393,8 @@ let S = {
  lastConstructorNews:null,
  lastDriverNews:null, // v3.7: standings del Mundial de Pilotos (top 3 + posición del jugador), ver buildDriverNews()
  aiDrivers:null, // se inicializa con initAIDrivers() al arrancar / resetear: pilotos IA de F1 (v3.0)
+ teamChangeMode:'real', // 'real' (eras del año calendario) | 'random' (nombres congelados + azar) | 'off' (solo pruebas)
+ teamChangeLog:{}, teamChangeHistory:[], lastTeamChangeSeason:null, lastEntrySeason:null, // última temporada de cambio por equipo / historial / anti-rachas
  seasonNum:0, // v3.6: cuenta temporadas jugadas desde el arranque de la partida (independiente de la edad)
  lateGamePoolInjected:false, // v3.6: si ya se sumó F1_LATE_GAME_POOL al mercado de libres (pasada la temporada 10)
  // v6: sistema de Piloto Nº1 / Nº2 / Reserva. f1Role es null fuera de F1; dentro de F1 vale
@@ -1583,6 +1534,10 @@ function renderHome(){
        <div class="diff-hint" id="diffHint">Temporada ${S.season} — pilotos y escuderías reales de esa temporada.</div>
        <div class="wipe-bar" id="wipeBar"></div>
      </div>
+     <div id="rowRealChanges" style="${realChangesAvailable()?'':'display:none'}">
+       <label class="opt-row"><input type="checkbox" id="optRealChanges" ${S.teamChangeMode==='random'?'':'checked'} onchange="setTeamChangeMode(this.checked)"> Cambios reales de escuderías</label>
+       <div class="opt-hint" id="teamChangeHint">${teamChangeHintText()}</div>
+     </div>
      <div class="home-actions">
        <button class="btn btn-primary" onclick="goIdentity()">Iniciar</button>
        <a class="btn btn-outline btn-link" href="index.html">Menú principal</a>
@@ -1592,18 +1547,23 @@ function renderHome(){
  <div class="footer-note">Versión en desarrollo: 2.7</div>
  `;
 }
-// v: años del roadmap de temporadas históricas. Hoy solo 2026 tiene pilotos/escuderías reales cargados
-// (F1_TEAMS, F1_DRIVERS_SEED) -- el resto queda visible como preview de lo que viene, pero bloqueado:
-// tocarlos no cambia S.season, solo actualiza el hint para avisar que todavía no está disponible.
-const SEASONS = [
- {year:2026, locked:false},
- {year:2020, locked:true},
- {year:2010, locked:true},
- {year:2000, locked:true},
- {year:1900, locked:true}
-];
+// Roadmap de temporadas del home. Una temporada se desbloquea sola cuando existe su archivo data/season-AAAA.js
+// (y está incluido con un <script> arriba de todo). Para sumar un año nuevo al roadmap, agregarlo a esta lista.
+const SEASONS = [2026, 2020, 2010, 2000, 1990].map(y=>({year:y, locked:!(window.SEASON_DATA && window.SEASON_DATA[y])}));
+// Cambia la temporada elegida en el home: carga sus datos y reinicia el mundo de equipos/pilotos IA.
+function selectSeason(year){
+ loadSeason(year);
+ S.season = year;
+ S.teamDynamics = initTeamDynamics();
+ S.aiDrivers = initAIDrivers();
+ updateTeamChangeOption();
+ document.querySelectorAll('[data-season]').forEach(b=>b.classList.toggle('active', +b.getAttribute('data-season')===year));
+}
+// Año calendario en curso dentro de la partida: arranca en la temporada elegida y suma 1 por temporada jugada.
+function currentYear(){ return S.season + (S.seasonNum||0); }
 function previewSeason(year){
  const s = SEASONS.find(x=>x.year===year);
+ if(s && !s.locked && year!==S.season) selectSeason(year);
  const hint = document.getElementById('diffHint');
  const bar = document.getElementById('wipeBar');
  const label = (s && !s.locked)
@@ -1770,6 +1730,11 @@ function currentTeamName(){
  const st = S.stints[S.stints.length-1];
  return st ? st.teamName : 'Libre';
 }
+// id estable del equipo (solo F1; null en juniors o sin equipo). Es la clave de toda la lógica de F1.
+function currentTeamId(){
+ const st = S.stints[S.stints.length-1];
+ return st ? (st.teamId || null) : null;
+}
 function currentTeamLogo(){
  const st = S.stints[S.stints.length-1];
  return st ? st.logo : null;
@@ -1793,20 +1758,19 @@ function initTeamDynamics(){
    // Variación inicial de partida: pequeño offset aleatorio (~±3.5) sobre el nivel base, así dos carreras
    // nuevas nunca arrancan con la parrilla exactamente igual. El nivel base (F1_TEAMS.tier) no se toca.
    const startVariation = (rnd()*2-1) * 3.5;
-   dyn[t.name] = {tier: clamp(t.tier + startVariation, 30, 99), momentum:0, lastDelta:0, hadProject:false, seasonsAtTop:0};
+   dyn[t.id] = {tier: clamp(t.tier + startVariation, 30, 99), momentum:0, lastDelta:0, hadProject:false, seasonsAtTop:0};
  });
  return dyn;
 }
 // Tier actual de un equipo de F1 (dinámico si ya evolucionó, base si todavía no se inicializó).
-function getF1TeamTier(name){
- const dyn = S.teamDynamics && S.teamDynamics[name];
+function getF1TeamTier(id){
+ const dyn = S.teamDynamics && S.teamDynamics[id];
  if(dyn) return dyn.tier;
- const base = F1_TEAMS.find(t=>t.name===name);
+ const base = F1_TEAMS.find(t=>t.id===id);
  return base ? base.tier : 60;
 }
 // Nivel de referencia aproximado de la parrilla actual, solo para decidir cuánto margen de mejora/caída
 // tiene cada equipo (no se usa para nada más, no hace falta tocarlo si se agregan/sacan equipos).
-const GRID_REF_TIER = 74;
 // Un paso de evolución para un equipo al cerrar la temporada.
 // ctx (opcional) trae el contexto de "eras" calculado en evolveF1Teams: si este equipo es el líder vigente,
 // hace cuántas temporadas seguidas lidera (leaderStreak), un empujoncito de catch-up si es perseguidor cercano
@@ -1863,43 +1827,214 @@ function evolveF1Team(dyn, baseTier, ctx){
 // Evoluciona toda la parrilla de F1 un paso, calcula el contexto de "era" (quién lidera, hace cuánto,
 // quién puede pegarle el salto) y arma las noticias de esa temporada.
 function evolveF1Teams(){
- const prevSorted = [...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.name)-getF1TeamTier(a.name));
- const prevRanking = prevSorted.map(t=>t.name);
- const leaderName = prevRanking[0];
- const leaderStreak = (S.teamDynamics[leaderName].seasonsAtTop || 0) + 1; // temporadas que lleva liderando, incluyendo esta
+ const prevSorted = [...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.id)-getF1TeamTier(a.id));
+ const prevRanking = prevSorted.map(t=>t.id);
+ const leaderId = prevRanking[0];
+ const leaderStreak = (S.teamDynamics[leaderId].seasonsAtTop || 0) + 1; // temporadas que lleva liderando, incluyendo esta
 
  // Perseguidores cercanos (2º a 5º) reciben un empujoncito de catch-up cuando el líder ya domina hace rato.
  // Recién se nota a partir de la 3ª temporada seguida arriba, y sigue siendo chico: ayuda a acortar distancias,
  // no a decidir el campeonato por sí solo.
- const chasers = prevSorted.slice(1,5).map(t=>t.name);
+ const chasers = prevSorted.slice(1,5).map(t=>t.id);
  const catchUpBase = clamp((leaderStreak-2)*0.15, 0, 0.9);
 
  F1_TEAMS.forEach(t=>{
-   const dyn = S.teamDynamics[t.name];
-   const isLeader = t.name === leaderName;
+   const dyn = S.teamDynamics[t.id];
+   const isLeader = t.id === leaderId;
    const ctx = {
      isLeader,
      leaderStreak,
-     catchUpBoost: (!isLeader && chasers.includes(t.name)) ? catchUpBase*rnd() : 0,
-     surpriseBoost: SURPRISE_TEAMS.includes(t.name)
+     catchUpBoost: (!isLeader && chasers.includes(t.id)) ? catchUpBase*rnd() : 0,
+     surpriseBoost: SURPRISE_TEAMS.includes(t.id)
    };
    evolveF1Team(dyn, t.tier, ctx);
  });
 
  // Recalcula el ranking post-evolución y actualiza la racha de liderazgo para la próxima temporada.
- const newLeader = [...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.name)-getF1TeamTier(a.name))[0].name;
+ const newLeader = [...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.id)-getF1TeamTier(a.id))[0].id;
  F1_TEAMS.forEach(t=>{
-   const dyn = S.teamDynamics[t.name];
-   dyn.seasonsAtTop = (t.name===newLeader) ? (t.name===leaderName ? leaderStreak : 1) : 0;
+   const dyn = S.teamDynamics[t.id];
+   dyn.seasonsAtTop = (t.id===newLeader) ? (t.id===leaderId ? leaderStreak : 1) : 0;
  });
 
  S.lastConstructorNews = buildConstructorNews(prevRanking);
 }
+/* =====================================================
+   CAMBIOS DE ESCUDERÍAS  (nombre / color / logo y altas de equipos a lo largo de los años)
+   · S.teamChangeMode:
+       'real'   -> sigue los datos reales de la temporada elegida hasta REAL_CHANGES_UNTIL: renombres
+                   (eras de cada equipo) y altas (entries, ej. Cadillac 2026). Pasado ese año cae en 'random'.
+       'random' -> nombres congelados + cambios aleatorios MUY poco frecuentes (ver TEAM_CHANGE_CFG).
+       'off'    -> sin cambios (solo para pruebas automáticas).
+   · El id del equipo NUNCA cambia: se renombra name/color/logo. Pilotos, historial y tier se conservan
+     (el tier puede recibir un "shock" según el tipo de cambio).
+   · Cambios aleatorios: rebrand (sponsor/marca), maker (compra de un fabricante, sube el nivel), sale
+     (nuevos dueños) y alta de un equipo nuevo. Los equipos "iconic" (data) NUNCA se renombran al azar.
+   · Pendiente: bajas de equipos (quiebras/retiros); llegan con la carga de 2010.
+===================================================== */
+const REAL_CHANGES_UNTIL = 2026; // último año con datos reales cargados; después todo es azar
+const TEAM_CHANGE_CFG = {
+ baseChance: 0.025,   // prob. anual de renombre por equipo ELEGIBLE (no iconic); x2 en equipos de fondo, x0.4 en el puntero
+ cooldown: 10,        // temporadas mínimas entre dos cambios del mismo equipo
+ globalCooldown: 6,   // temporadas mínimas entre dos cambios cualesquiera (también cuenta desde el inicio de la partida)
+ weights: {rebrand:40, maker:25, sale:35},
+ entryChance: 0.02,   // prob. anual de que se sume un equipo nuevo (solo si hay menos de MAX_TEAMS)
+ entryCooldown: 8
+};
+// Identidades extra para el modo aleatorio (sin logo -> se muestran las iniciales). A esto se suman
+// automáticamente TODAS las identidades (eras) de las temporadas cargadas en data/.
+//   maker = fabricante · brand = marca/escudería conocida · minor = equipo chico histórico (solo para altas nuevas)
+const NAME_CATALOG_BUILTIN = [
+ {name:'Toyota',color:'#EB0A1E',kind:'maker'}, {name:'BMW',color:'#1C69D4',kind:'maker'}, {name:'Honda',color:'#CC0000',kind:'maker'},
+ {name:'Porsche',color:'#B12B28',kind:'maker'}, {name:'Hyundai',color:'#002C5F',kind:'maker'}, {name:'Ford',color:'#003478',kind:'maker'},
+ {name:'Lamborghini',color:'#DDB321',kind:'maker'}, {name:'Maserati',color:'#0C2340',kind:'maker'}, {name:'BYD',color:'#C8102E',kind:'maker'},
+ {name:'Lotus',color:'#FFB800',kind:'brand'}, {name:'Jordan',color:'#F7D117',kind:'brand'}, {name:'Jaguar',color:'#0B6B3A',kind:'brand'},
+ {name:'Benetton',color:'#00A94F',kind:'brand'}, {name:'Brabham',color:'#2B6CB0',kind:'brand'}, {name:'Tyrrell',color:'#1E4F9C',kind:'brand'},
+ {name:'Stewart',color:'#F4F4F4',kind:'brand'}, {name:'Ligier',color:'#2E5EAA',kind:'brand'}, {name:'Prost',color:'#1D4ED8',kind:'brand'},
+ {name:'Brawn GP',color:'#C6F500',kind:'brand'},
+
+
+ {name:'Minardi',color:'#1A1A1A',kind:'minor'}, {name:'Arrows',color:'#F58220',kind:'minor'}, {name:'Spyker',color:'#E87722',kind:'minor'},
+ {name:'Midland',color:'#B22222',kind:'minor'}, {name:'Caterham',color:'#0B5D3B',kind:'minor'}, {name:'Marussia',color:'#C8102E',kind:'minor'},
+ {name:'Manor',color:'#D32F2F',kind:'minor'}
+];
+// Identidades disponibles ahora: catálogo + eras de las temporadas cargadas, sin repetir nombres que hoy corren en la parrilla.
+function teamNameCatalog(){
+ const used = new Set(F1_TEAMS.map(t=>t.name)), seen = new Set(), out = [];
+ const add = e=>{ if(!e || !e.name || used.has(e.name) || seen.has(e.name)) return; seen.add(e.name); out.push(e); };
+ const seasons = window.SEASON_DATA || {};
+ const addEras = tm=>tm.eras.forEach(e=>add({name:e.name, color:e.color, logo:e.logo?LOGO_BASE+e.logo:null, kind:'brand', lineage:tm.id}));
+ Object.keys(seasons).sort().forEach(y=>{ seasons[y].teams.forEach(addEras); (seasons[y].entries||[]).forEach(en=>addEras(en.team)); });
+ NAME_CATALOG_BUILTIN.forEach(add);
+ return out;
+}
+function realChangesAvailable(){ return S.season < REAL_CHANGES_UNTIL; } // desde 2026 no hay cambios oficiales
+function teamChangeHintText(){
+ return S.teamChangeMode==='random'
+   ? 'Los equipos conservan su nombre y la parrilla no cambia, salvo cambios aleatorios muy poco frecuentes.'
+   : 'Los equipos cambian de nombre y se suman nuevos como en la realidad hasta 2026 (ej. Cadillac); después, por azar.';
+}
+function updateTeamChangeOption(){
+ const r = document.getElementById('rowRealChanges');
+ if(r) r.style.display = realChangesAvailable() ? '' : 'none';
+}
+function setTeamChangeMode(checked){
+ S.teamChangeMode = checked ? 'real' : 'random';
+ const h = document.getElementById('teamChangeHint');
+ if(h) h.textContent = teamChangeHintText();
+}
+function markTeamChange(teamId){
+ S.teamChangeLog[teamId] = S.seasonNum||0;
+ S.lastTeamChangeSeason = S.seasonNum||0;
+}
+// Aplica una nueva identidad a un equipo de F1. shock = ajuste de nivel (tier dinámico y, a medias, el ancla).
+function applyTeamIdentity(team, ident, kind, shock){
+ const from = team.name;
+ team.name = ident.name; team.color = ident.color; team.logo = ident.logo;
+ // Si el jugador corre en este equipo, el historial abre un tramo nuevo con el nombre nuevo (la antigüedad se conserva).
+ if(!S.retired && S.ladderIdx >= LADDER.length && currentTeamId()===team.id){
+   const prev = S.stints[S.stints.length-1];
+   prev.ageEnd = S.age;
+   S.stints.push({teamId:team.id, teamName:team.name, color:team.color, logo:team.logo, ageStart:S.age, ageEnd:null,
+     tenureStart:(prev.tenureStart!=null ? prev.tenureStart : prev.ageStart),
+     races:0, wins:0, podiums:0, points:0, dnfs:0, titles:0, category:prev.category});
+ }
+ if(shock){
+   const dyn = S.teamDynamics && S.teamDynamics[team.id];
+   if(dyn) dyn.tier = clamp(dyn.tier + shock, 30, 99);
+   team.tier = clamp(team.tier + shock*0.5, 35, 96);
+ }
+ markTeamChange(team.id);
+ const rec = {id:team.id, from, to:team.name, kind, year:currentYear()};
+ S.teamChangeHistory.push(rec);
+ return rec;
+}
+// Suma un equipo nuevo a la parrilla (alta real de data o alta aleatoria). Sus asientos se cubren con la cantera libre.
+function addF1Team(td, year, kind){
+ TEAM_DATA[td.id] = td;
+ const e = eraAt(td, year);
+ F1_TEAMS.push({id:td.id, name:e.name, tier:td.tier, color:e.color, logo:e.logo?LOGO_BASE+e.logo:null, iconic:!!td.iconic});
+ S.teamDynamics[td.id] = {tier: clamp(td.tier + (rnd()*2-1)*3.5, 30, 99), momentum:0, lastDelta:0, hadProject:false, seasonsAtTop:0};
+ markTeamChange(td.id);
+ if(kind==='entry-random') S.lastEntrySeason = S.seasonNum||0;
+ fillMarketVacancies();
+ const rec = {id:td.id, from:null, to:e.name, kind:'entry', year};
+ S.teamChangeHistory.push(rec);
+ return rec;
+}
+// Sortea (como mucho) UN cambio por temporada, y muy de vez en cuando. Los equipos iconic nunca se renombran.
+function rollRandomTeamChange(){
+ const cfg = TEAM_CHANGE_CFG, sn = S.seasonNum||0, log = S.teamChangeLog;
+ const last = S.lastTeamChangeSeason!=null ? S.lastTeamChangeSeason : 0; // desde el inicio de la partida también corre el enfriamiento
+ if(sn - last < cfg.globalCooldown) return null;
+ const cat = teamNameCatalog();
+ // 1) alta de un equipo nuevo (con tope de equipos)
+ const lastEntry = S.lastEntrySeason!=null ? S.lastEntrySeason : -99;
+ const entrantPool = cat.filter(e=>!e.lineage || !F1_TEAMS.some(x=>x.id===e.lineage));
+ if(F1_TEAMS.length < MAX_TEAMS && sn - lastEntry >= cfg.entryCooldown && rnd() < cfg.entryChance && entrantPool.length){
+   const ident = entrantPool[Math.floor(rnd()*entrantPool.length)];
+   let id = ident.name.toLowerCase().replace(/[^a-z0-9]/g,'') || 'nuevo';
+   while(TEAM_DATA[id]) id += 'x';
+   const tier = (ident.kind==='maker' ? 58 : 46) + Math.floor(rnd()*9);
+   const logoRel = ident.logo ? ident.logo.replace(LOGO_BASE,'') : null;
+   return addF1Team({id, tier, eras:[{from:currentYear(), name:ident.name, color:ident.color, logo:logoRel}]}, currentYear(), 'entry-random');
+ }
+ // 2) renombre de un equipo existente
+ const ranked = [...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.id)-getF1TeamTier(a.id));
+ const cands = ranked.filter(t=>!t.iconic && sn - (log[t.id]!=null ? log[t.id] : -99) >= cfg.cooldown).sort(()=>rnd()-0.5);
+ for(const t of cands){
+   const rank = ranked.indexOf(t);
+   let p = cfg.baseChance;
+   if(rank===0) p *= 0.4; else if(rank >= Math.floor(ranked.length*2/3)) p *= 2;
+   if(rnd() >= p) continue;
+   // un equipo solo puede tomar nombres libres o de su propio linaje (ej. Alpine puede volver a ser Renault, pero no "Racing Point")
+   const makers = cat.filter(e=>e.kind==='maker'), brands = cat.filter(e=>e.kind==='brand' && (!e.lineage || e.lineage===t.id));
+   const w = {...cfg.weights};
+   if(!makers.length) w.maker = 0;
+   if(!brands.length){ w.rebrand = 0; w.sale = 0; }
+   const tot = w.rebrand + w.maker + w.sale;
+   if(tot<=0) return null;
+   const r = rnd()*tot;
+   const kind = r < w.rebrand ? 'rebrand' : (r < w.rebrand + w.maker ? 'maker' : 'sale');
+   const pool = kind==='maker' ? makers : brands;
+   const ident = pool[Math.floor(rnd()*pool.length)];
+   const shock = kind==='maker' ? 3 + rnd()*4 : (kind==='sale' ? (rnd()*2-1)*5 : (rnd()*2-1)*2);
+   return applyTeamIdentity(t, ident, kind, shock);
+ }
+ return null;
+}
+function teamChangeHeadline(c){
+ if(c.kind==='entry')  return `🆕 ${c.to} se suma a la parrilla de F1 en ${c.year}.`;
+ if(c.kind==='real')   return `🔄 ${c.from} pasa a llamarse ${c.to} desde ${c.year}.`;
+ if(c.kind==='maker')  return `🏭 ${c.to} compra ${c.from}: el equipo se presenta como ${c.to} en ${c.year}.`;
+ if(c.kind==='sale')   return `💼 ${c.from} cambia de manos y pasa a llamarse ${c.to} para ${c.year}.`;
+ return `🔄 ${c.from} cambia de nombre: en ${c.year} correrá como ${c.to}.`;
+}
+// Se llama una vez por temporada (en runSeasons), con currentYear() ya apuntando al año que arranca.
+function processTeamChanges(){
+ const mode = S.teamChangeMode || 'real';
+ if(mode==='off' || !F1_TEAMS.length) return;
+ const year = currentYear(), done = [];
+ if(mode==='real' && year <= REAL_CHANGES_UNTIL){
+   F1_TEAMS.forEach(t=>{
+     const ident = teamIdentityAt(t.id, year);
+     if(!ident) return;
+     if(ident.name !== t.name) done.push(applyTeamIdentity(t, ident, 'real', 0));
+     else { t.color = ident.color; t.logo = ident.logo; }
+   });
+   F1_ENTRIES.forEach(en=>{ if(en.year <= year && !F1_TEAMS.some(t=>t.id===en.team.id)) done.push(addF1Team(en.team, year, 'entry')); });
+ } else {
+   const c = rollRandomTeamChange();
+   if(c) done.push(c);
+ }
+ if(done.length && S.lastConstructorNews) done.forEach(c=>S.lastConstructorNews.headlines.push(teamChangeHeadline(c)));
+}
+
 function buildConstructorNews(prevRanking){
- const ranked = [...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.name)-getF1TeamTier(a.name));
+ const ranked = [...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.id)-getF1TeamTier(a.id));
  const podium = ranked.slice(0,3).map((t,i)=>{
-   const prevIdx = prevRanking.indexOf(t.name);
-   return {name:t.name, color:t.color, logo:t.logo, pos:i+1, delta: prevIdx - i}; // positivo = subió puestos
+   const prevIdx = prevRanking.indexOf(t.id);
+   return {id:t.id, name:t.name, color:t.color, logo:t.logo, pos:i+1, delta: prevIdx - i}; // positivo = subió puestos
  });
  // El podio ya transmite quién sube y quién baja: no generamos titulares automáticos de rendimiento
  // (eso duplicaba la info del podio). Este array queda como gancho para eventos EXCEPCIONALES a futuro
@@ -1910,11 +2045,11 @@ function buildConstructorNews(prevRanking){
  let playerTeamRow = null;
  const pTeam = playerF1Team();
  if(pTeam){
-   const idx = ranked.findIndex(t=>t.name===pTeam);
+   const idx = ranked.findIndex(t=>t.id===pTeam);
    if(idx>=3){
      const t = ranked[idx];
-     const prevIdx = prevRanking.indexOf(t.name);
-     playerTeamRow = {name:t.name, color:t.color, logo:t.logo, pos:idx+1, delta: prevIdx - idx};
+     const prevIdx = prevRanking.indexOf(t.id);
+     playerTeamRow = {id:t.id, name:t.name, color:t.color, logo:t.logo, pos:idx+1, delta: prevIdx - idx};
    }
  }
  return {podium, headlines, playerTeamRow, _seq: ++_constructorNewsSeq};
@@ -1969,18 +2104,18 @@ function applyChampionshipLottery(entries){
 function getF1StandingsEntries(){
  const list = [];
  F1_TEAMS.forEach(t=>{
-   const teamTier = getF1TeamTier(t.name);
-   getTeamAIDrivers(t.name).forEach(d=>{
+   const teamTier = getF1TeamTier(t.id);
+   getTeamAIDrivers(t.id).forEach(d=>{
      list.push({id:d.name, name:d.name, nat:d.nat, team:t.name, teamColor:t.color, teamLogo:t.logo, power:d.ovr*0.30 + teamTier*0.70, isPlayer:false});
    });
  });
  const pTeam = playerF1Team();
  if(pTeam && S.f1Role!=='reserva'){ // v6: un reserva no corre, no tiene lugar en el Mundial de Pilotos
-   const t = F1_TEAMS.find(x=>x.name===pTeam);
+   const t = F1_TEAMS.find(x=>x.id===pTeam);
    const teamTier = getF1TeamTier(pTeam);
    const playerNat = (COUNTRIES.find(c=>c[1]===S.country)||['xx'])[0];
    const roleBonus = S.f1Role==='primero' ? 1 : 0; // v6: mismo bonus de prioridad que en simulateOneSeason
-   list.push({id:'PLAYER', name:S.surname||'Vos', nat:playerNat, team:pTeam, teamColor:t?t.color:null, teamLogo:t?t.logo:null, power:(S.ovr+roleBonus)*0.30 + teamTier*0.70, isPlayer:true});
+   list.push({id:'PLAYER', name:S.surname||'Vos', nat:playerNat, team:t?t.name:pTeam, teamColor:t?t.color:null, teamLogo:t?t.logo:null, power:(S.ovr+roleBonus)*0.30 + teamTier*0.70, isPlayer:true});
  }
  list.sort((a,b)=>b.power-a.power);
  return list;
@@ -2026,9 +2161,9 @@ function buildF1OfferEvent(){
  // (Promesa frustrada, Fracaso), sin tocar el OVR real del piloto.
  const repFactor = (S.reputacion-50)/50; // -1..1
  const targetTier = S.ovr + repFactor*8 + arch.mods.offerTierBias;
- const near = sorted.filter(t=>Math.abs(t.tier - targetTier) < 22 && t.name!==currentTeamName());
+ const near = sorted.filter(t=>Math.abs(t.tier - targetTier) < 22 && t.id!==currentTeamId());
  const offerCount = clamp((S.reputacion>=65 ? 3 : S.reputacion>=35 ? 2 : 1) + arch.mods.offerCountBonus, 1, 4);
- const basePool = (near.length>=offerCount?near:sorted.filter(t=>t.name!==currentTeamName())).sort(()=>rnd()-0.5).slice(0, offerCount);
+ const basePool = (near.length>=offerCount?near:sorted.filter(t=>t.id!==currentTeamId())).sort(()=>rnd()-0.5).slice(0, offerCount);
  // v6: cada oferta trae su rol (reserva/segundo/primero) -- ver deriveOfferedRole(). Los equipos top piden
  // nivel de titular antes de subirte al auto de carrera; el resto puede ofrecerte titularidad directa.
  const pool = basePool.map(t=>({...t, role: deriveOfferedRole(t)}));
@@ -2073,7 +2208,7 @@ function buildRandomEvent(){
 }
 function buildTransferEvent(){
  const sorted = [...F1_TEAMS].sort((a,b)=>b.tier-a.tier);
- const better = sorted.filter(t=>t.tier > (F1_TEAMS.find(x=>x.name===currentTeamName())?.tier||0) && t.name!==currentTeamName());
+ const better = sorted.filter(t=>t.tier > (F1_TEAMS.find(x=>x.id===currentTeamId())?.tier||0) && t.id!==currentTeamId());
  if(better.length===0) return buildRandomEvent();
  // Con más reputación, tenés más poder de negociación y accedés a un abanico más amplio de pretendientes.
  const poolSize = S.reputacion>=65 ? 2 : 1;
@@ -2104,17 +2239,18 @@ function buildRenewalOfferEvent(){
 // Fichar como reserva NO le saca el asiento a nadie (ver f1SeatCapacity); fichar como titular sí, y por
 // eso releaseSeatForPlayer() se llama siempre que el rol sea de carrera, no solo al abrir un stint nuevo
 // -- así también cubre el caso de un ascenso de reserva a titular DENTRO del mismo equipo (mismo stint).
-function pickTeam(teamName, color, category, logo, role){
- if(S.stints.length===0 || currentTeamName()!==teamName){
+function pickTeam(teamName, color, category, logo, role, teamId){
+ const sameTeam = teamId ? currentTeamId()===teamId : currentTeamName()===teamName;
+ if(S.stints.length===0 || !sameTeam){
    if(S.stints.length){ S.stints[S.stints.length-1].ageEnd = S.age; }
-   S.stints.push({teamName, color, logo, ageStart:S.age, ageEnd:null, races:0, wins:0, podiums:0, points:0, dnfs:0, titles:0, category});
+   S.stints.push({teamId:teamId||null, teamName, color, logo, ageStart:S.age, ageEnd:null, races:0, wins:0, podiums:0, points:0, dnfs:0, titles:0, category});
  }
- const isF1Team = F1_TEAMS.some(t=>t.name===teamName);
+ const isF1Team = !!teamId && F1_TEAMS.some(t=>t.id===teamId);
  if(isF1Team && role!=='reserva'){
    // Mercado interno de pilotos (v3.0): si el jugador ficha un asiento de carrera en una escudería de
    // F1, ocupa uno de los dos, así que el piloto IA más flojo de esa escudería queda libre en el acto.
    // Si ya se había liberado antes (ej. venías de reserva y ahora te ascienden), esto no hace nada más.
-   releaseSeatForPlayer(teamName);
+   releaseSeatForPlayer(teamId);
  }
  S.f1Role = (category==='Fórmula 1') ? (role || S.f1Role || 'segundo') : null;
 }
@@ -2141,19 +2277,19 @@ function applyEventChoice(evObj, choiceKey, cardEl){
  if(evObj.type==='teamOffer'){
    const opt = evObj.options[choiceKey];
    slashColor = opt.color;
-   pickTeam(opt.name, opt.color, evObj.category.name, opt.logo);
+   pickTeam(opt.name, opt.color, evObj.category.name, opt.logo, undefined, opt.id);
    S.pending = null;
    runSeasons();
  } else if(evObj.type==='f1Offer'){
    slashColor = evObj.options[choiceKey].color;
    const opt = evObj.options[choiceKey];
-   pickTeam(opt.name, opt.color, 'Fórmula 1', opt.logo, opt.role);
+   pickTeam(opt.name, opt.color, 'Fórmula 1', opt.logo, opt.role, opt.id);
    S.pending = null;
    runSeasons();
  } else if(evObj.type==='transfer'){
    if(choiceKey==='accept'){
      slashColor = evObj.target.color;
-     pickTeam(evObj.target.name, evObj.target.color, 'Fórmula 1', evObj.target.logo, evObj.target.role);
+     pickTeam(evObj.target.name, evObj.target.color, 'Fórmula 1', evObj.target.logo, evObj.target.role, evObj.target.id);
      S.value = Math.round(S.value*1.15);
    } else {
      S.value = Math.round(S.value*1.05);
@@ -2306,7 +2442,7 @@ function runSeasons(){
  for(let s=0; s<step; s++){
    if(S.age >= (S.ageRetireLimit || 40)) break;
    const wasInF1 = S.ladderIdx >= LADDER.length;
-   const teamThisSeason = wasInF1 ? currentTeamName() : null;
+   const teamThisSeason = wasInF1 ? currentTeamId() : null; // id estable (el nombre puede cambiar entre eras)
    // v3.7: standings de pilotos ANTES de que nada de esta temporada evolucione (ovr de IA, ovr del
    // jugador, tier de equipos). Es el "punto de partida" contra el que se mide el delta ▲▼ del Mundial.
    const prevDriverEntries = getF1StandingsEntries();
@@ -2347,7 +2483,7 @@ function runSeasons(){
    // Campeonato de Constructores: si el equipo del jugador termina 1º en el podio de esa temporada, suma trofeo.
    // Solo lee el resultado ya calculado por evolveF1Teams/buildConstructorNews; no toca esa lógica.
    // (un piloto reserva no corre, así que no suma título de constructores por más que su equipo salga campeón)
-   if(wasInF1 && !wasReserve && S.lastConstructorNews && S.lastConstructorNews.podium[0] && S.lastConstructorNews.podium[0].name === teamThisSeason){
+   if(wasInF1 && !wasReserve && S.lastConstructorNews && S.lastConstructorNews.podium[0] && S.lastConstructorNews.podium[0].id === teamThisSeason){
      S.titles.constructors++;
      const stC = S.stints[S.stints.length-1];
      stC.titles = (stC.titles||0) + 1;
@@ -2355,6 +2491,7 @@ function runSeasons(){
      _pendingTitleReveals.push('constructors');
    }
    S.age += 1;
+   processTeamChanges(); // renombres de escuderías para el año calendario que arranca (reales o aleatorios)
    // v: al cumplir 40 se fija el límite real de esta carrera (según el OVR de ESTE momento -- ver
    // computeAgeRetireLimit). Se calcula una sola vez: si ya estaba fijado (partida cargada a mitad de
    // camino, o llamada repetida), no se vuelve a tocar.
@@ -2406,8 +2543,8 @@ function runSeasons(){
 function simulateOneSeason(){
  const inF1 = S.ladderIdx >= LADDER.length;
  const cat = inF1 ? null : LADDER[S.ladderIdx];
- const teamTier = inF1 ? getF1TeamTier(currentTeamName()) : (cat.tierBase + rnd()*10);
- const races = inF1 ? 22 : cat.races;
+ const teamTier = inF1 ? getF1TeamTier(currentTeamId()) : (cat.tierBase + rnd()*10);
+ const races = inF1 ? F1_RACES : cat.races;
  const fieldSize = inF1 ? F1_FIELD_SIZE : (FIELD_SIZE[cat.id] || 28);
 
  // Motor de temporada: el nivel del auto pesa mucho más que el piloto (≈70% equipo / 30% piloto),
@@ -2639,7 +2776,7 @@ function checkSeatRenewal(){
  // empieza a sumar riesgo aparte (el equipo prueba sangre nueva, se le acaba la paciencia).
  const eliteTier = arch.id==='leyenda' || arch.id==='campeonMultiple' || arch.id==='campeon';
  const curStint = S.stints[S.stints.length-1];
- const tenure = curStint ? (S.age - curStint.ageStart) : 0;
+ const tenure = curStint ? (S.age - (curStint.tenureStart != null ? curStint.tenureStart : curStint.ageStart)) : 0; // tenureStart: se conserva si el equipo cambió de nombre
  const tenureRisk = eliteTier
    ? clamp((tenure-10)*0.010, 0, 0.05)   // recién después de 10 años, y muy poco
    : clamp((tenure-5)*0.035, 0, 0.30);   // a partir del año 6 en el mismo equipo, sube fuerte
@@ -2653,8 +2790,8 @@ function checkSeatRenewal(){
 
  if(S.ladderIdx >= LADDER.length){
    // No te renuevan en tu escudería de F1. Si hay algún equipo de F1 interesado (según tu reputación), seguís ahí.
-   const curTier = F1_TEAMS.find(t=>t.name===currentTeamName())?.tier || 60;
-   const willing = F1_TEAMS.filter(t=>t.tier <= curTier-4 && t.name!==currentTeamName());
+   const curTier = F1_TEAMS.find(t=>t.id===currentTeamId())?.tier || 60;
+   const willing = F1_TEAMS.filter(t=>t.tier <= curTier-4 && t.id!==currentTeamId());
    if(willing.length>0 && S.reputacion>=15){
      const pool = willing.sort((a,b)=>b.tier-a.tier).slice(0, S.reputacion>=40?2:1).map(t=>({...t, role: deriveOfferedRole(t)}));
      return {type:'f1Offer', options:pool, isNonRenewal:true};
@@ -2725,7 +2862,7 @@ const RESERVE_SUB_EVENT = {label:'Sustituís al titular en un GP', icon:'🚨'};
 
 function simulateReserveSeason(){
  const teamName = currentTeamName();
- const teamTier = getF1TeamTier(teamName);
+ const teamTier = getF1TeamTier(currentTeamId());
  const arch = getArchetype();
  if(!S.reserveLog) S.reserveLog = {successes:0, fails:0, total:0};
  const recap = {teamName, tests:[], substitution:null};
@@ -2784,7 +2921,7 @@ function simulateReserveSeason(){
 // se aplica el rol al toque y se muestra como una tarjeta informativa de un solo botón (ver
 // decisionAreaHTML/'reserveResult'), coherente con cómo el resto del juego anuncia ascensos automáticos.
 function promoteToRole(role){
- pickTeam(currentTeamName(), currentTeamColor(), 'Fórmula 1', currentTeamLogo(), role);
+ pickTeam(currentTeamName(), currentTeamColor(), 'Fórmula 1', currentTeamLogo(), role, currentTeamId());
  return {type:'reserveResult', icon:'📈',
    title: role==='primero' ? '¡Ascenso a Piloto Nº1!' : 'Ascenso a Piloto Nº2',
    desc: `${currentTeamName()} decidió confiar en vos como ${ROLE_LABEL[role]} para la próxima temporada.`};
@@ -2792,9 +2929,9 @@ function promoteToRole(role){
 // Otros equipos se interesan (buen o regular año de reserva) -- reusa el mismo formato que un debut/
 // no-renovación de F1, cada oferta con su rol ya etiquetado por deriveOfferedRole().
 function buildReserveMarketOffers(quality){
- let sorted = [...F1_TEAMS].filter(t=>t.name!==currentTeamName()).sort((a,b)=>b.tier-a.tier);
+ let sorted = [...F1_TEAMS].filter(t=>t.id!==currentTeamId()).sort((a,b)=>b.tier-a.tier);
  if(quality==='low') sorted = sorted.filter(t=>t.tier < 70);
- if(!sorted.length) sorted = [...F1_TEAMS].filter(t=>t.name!==currentTeamName());
+ if(!sorted.length) sorted = [...F1_TEAMS].filter(t=>t.id!==currentTeamId());
  const offerCount = clamp(S.reputacion>=55?2:1, 1, 2);
  const pool = sorted.slice(0, offerCount).map(t=>({...t, role: deriveOfferedRole(t)}));
  return {type:'f1Offer', options:pool, isNonRenewal:true};
@@ -2802,8 +2939,8 @@ function buildReserveMarketOffers(quality){
 // Mal año de reserva: probá suerte en algún equipo chico dispuesto a arriesgarse, o si ni eso, tocó
 // bajar a reconstruirse en F2 -- mismo camino de siempre para quedar sin asiento de F1 (checkSeatRenewal).
 function buildReserveFreeAgentEvent(despido){
- const curTier = F1_TEAMS.find(t=>t.name===currentTeamName())?.tier || 60;
- const willing = F1_TEAMS.filter(t=>t.tier <= curTier-4 && t.name!==currentTeamName());
+ const curTier = F1_TEAMS.find(t=>t.id===currentTeamId())?.tier || 60;
+ const willing = F1_TEAMS.filter(t=>t.tier <= curTier-4 && t.id!==currentTeamId());
  if(willing.length>0 && S.reputacion>=15 && !despido){
    const pool = willing.sort((a,b)=>b.tier-a.tier).slice(0,1).map(t=>({...t, role: deriveOfferedRole(t)}));
    return {type:'f1Offer', options:pool, isNonRenewal:true};
@@ -2848,7 +2985,7 @@ function checkReserveSeasonOutcome(){
 function updatePlayerF1Role(){
  if(!(S.ladderIdx>=LADDER.length && !S.retired)) return;
  if(S.f1Role==='reserva' || !S.f1Role) return;
- const mate = getTeamAIDrivers(currentTeamName())[0];
+ const mate = getTeamAIDrivers(currentTeamId())[0];
  if(!mate) return;
  const playerScore = S.ovr + S.reputacion*0.15;
  const mateScore = mate.ovr + mate.reputacion*0.15;
@@ -3035,7 +3172,22 @@ function renderTeams(){
    <button class="btn btn-outline" style="padding:9px 16px; font-size:12.5px;" onclick="S.screen='career'; render()">Volver a la carrera</button>
  </div>
  <div class="fadein">
-   ${LADDER.map(cat=>`
+   <div class="card-panel" style="margin-bottom:16px; padding:22px 24px;">
+     <div class="section-label" style="text-align:left; margin-bottom:14px;">Fórmula 1</div>
+     <div class="team-offer-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));">
+       ${[...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.id)-getF1TeamTier(a.id)).map(t=>`<div class="team-offer" style="cursor:default;">
+         ${teamBadge(t.name, t.color, t.logo, 'logo')}
+         <div class="tname">${t.name}</div>
+         <div style="margin-top:8px; display:flex; flex-direction:column; gap:3px;">
+           ${getTeamRosterWithPlayer(t.id).map(d=>`<div title="${d.status==='confirmado'?'Asiento firme':'En duda'}" style="font-size:12px; color:${d.isPlayer?'var(--text)':'var(--muted)'}; font-weight:${d.isPlayer?700:400}; display:flex; align-items:center; justify-content:center; gap:5px;">
+             ${d.nat?flagIcon(d.nat):'<span class="flag-icon flag-icon-empty"></span>'}<span>${d.name}${d.age?` (${d.age})`:''}${d.isPlayer?' · Vos':''}</span>
+             ${d.role?`<span class="chip" style="padding:1px 6px; font-size:9.5px; margin:0; background:transparent; color:${ROLE_COLOR[d.role]};">${ROLE_SHORT[d.role]}</span>`:''}
+           </div>`).join('')}
+         </div>
+       </div>`).join('')}
+     </div>
+   </div>
+   ${[...LADDER].reverse().map(cat=>`
      <div class="card-panel" style="margin-bottom:16px; padding:22px 24px;">
        <div class="section-label" style="text-align:left; margin-bottom:14px;">${cat.name} <span style="color:var(--muted2); font-weight:500; text-transform:none; letter-spacing:0;">· ${cat.races} carreras/temporada</span></div>
        <div class="team-offer-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));">
@@ -3045,21 +3197,6 @@ function renderTeams(){
          </div>`).join('')}
        </div>
      </div>`).join('')}
-   <div class="card-panel" style="padding:22px 24px;">
-     <div class="section-label" style="text-align:left; margin-bottom:14px;">Fórmula 1</div>
-     <div class="team-offer-grid" style="grid-template-columns:repeat(auto-fill,minmax(150px,1fr));">
-       ${[...F1_TEAMS].sort((a,b)=>getF1TeamTier(b.name)-getF1TeamTier(a.name)).map(t=>`<div class="team-offer" style="cursor:default;">
-         ${teamBadge(t.name, t.color, t.logo, 'logo')}
-         <div class="tname">${t.name}</div>
-         <div style="margin-top:8px; display:flex; flex-direction:column; gap:3px;">
-           ${getTeamRosterWithPlayer(t.name).map(d=>`<div title="${d.status==='confirmado'?'Asiento firme':'En duda'}" style="font-size:12px; color:${d.isPlayer?'var(--text)':'var(--muted)'}; font-weight:${d.isPlayer?700:400}; display:flex; align-items:center; justify-content:center; gap:5px;">
-             ${d.nat?flagIcon(d.nat):'<span class="flag-icon flag-icon-empty"></span>'}<span>${d.name}${d.age?` (${d.age})`:''}${d.isPlayer?' · Vos':''}</span>
-             ${d.role?`<span class="chip" style="padding:1px 6px; font-size:9.5px; margin:0; background:transparent; color:${ROLE_COLOR[d.role]};">${ROLE_SHORT[d.role]}</span>`:''}
-           </div>`).join('')}
-         </div>
-       </div>`).join('')}
-     </div>
-   </div>
  </div>
  `;
 }
@@ -3555,13 +3692,6 @@ function legacyTagHTML(){
 // títulos se SUMAN al total real de la base -- así "M. Verstappen" puede aparecer con más de 4 si ganó
 // de nuevo en esta partida. Pilotos IA que ganaron títulos y no están en la base (ej. Leclerc, Colapinto)
 // se suman como entradas nuevas, compitiendo con todo lo demás solo por lo ganado EN esta partida.
-const BASE_CHAMPIONS = [
- {name:'M. Schumacher', nat:'de', titles:7, aiKey:null},
- {name:'L. Hamilton',   nat:'gb', titles:7, aiKey:'L. Hamilton'},
- {name:'J.M. Fangio',   nat:'ar', titles:5, aiKey:null},
- {name:'M. Verstappen', nat:'nl', titles:4, aiKey:'M. Verstappen'},
- {name:'A. Prost',      nat:'fr', titles:4, aiKey:null},
-];
 function buildChampionsHistory(){
  const baseKeys = new Set(BASE_CHAMPIONS.map(c=>c.aiKey).filter(Boolean));
  const list = BASE_CHAMPIONS.map(c=>{
@@ -3677,6 +3807,7 @@ function renderSummary(){
 }
 
 function resetGame(){
+ loadSeason(S.season); // restaura nombres/colores/logos originales (los cambios de escudería mutan F1_TEAMS durante la partida)
  S = {
   screen:'home', difficulty:S.difficulty, season:S.season,
   surname:'', number:10, country:null, countryFilter:'',
@@ -3690,6 +3821,7 @@ function resetGame(){
   seasonsInCategory:0, lastCategoryId:null,
   teamDynamics:null, lastConstructorNews:null, lastDriverNews:null,
   aiDrivers:null,
+  teamChangeMode:S.teamChangeMode, teamChangeLog:{}, teamChangeHistory:[], lastTeamChangeSeason:null, lastEntrySeason:null,
   seasonNum:0, lateGamePoolInjected:false,
   f1Role:null, reserveLog:{successes:0, fails:0, total:0}, lastReserveRecap:null
  };
