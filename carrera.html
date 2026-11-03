@@ -499,7 +499,12 @@ html{touch-action:manipulation;}
 /* density: con Detallada como único modo, la fila queda siempre compacta */
 .timeline-panel.tl-detallada .tl-row{padding:5px 16px; font-size:11px;}
 .timeline-panel.tl-detallada .tl-head{padding:9px 16px; font-size:9.5px;}
-/* v: en mobile la trayectoria queda en una cajita de alto fijo con scroll propio (como Copero) -- no
+/* v: la trayectoria de la carrera en curso es una cajita de alto fijo con scroll propio (en PC y en celular): no se
+   estira con cada temporada y siempre queda a la vista la última (ver scrollTimelineToNow). En PC es más alta. */
+.career-grid-main .tl-body{position:relative; max-height:340px; overflow-y:auto; overflow-x:hidden; scrollbar-width:thin; scrollbar-color:var(--line) transparent;}
+.career-grid-main .tl-body::-webkit-scrollbar{width:6px;}
+.career-grid-main .tl-body::-webkit-scrollbar-thumb{background:var(--line); border-radius:3px;}
+/* (histórico) en mobile la trayectoria queda en una cajita de alto fijo con scroll propio (como Copero) -- no
    empuja el resto de la pantalla para abajo por más larga que sea la carrera. Solo aplica al layout
    mobile (mismo breakpoint que el reordenamiento de .career-grid-main); en desktop sigue igual, sin
    scroll interno, mostrando toda la lista.
@@ -611,6 +616,9 @@ html{touch-action:manipulation;}
 </style>
 <script src="data/season-2026.js"></script>
 <script src="data/season-2020.js"></script>
+<script src="data/season-2010.js"></script>
+<script src="data/season-2000.js"></script>
+<script src="data/season-1990.js"></script>
 </head>
 <body>
 <div class="app" id="app"></div>
@@ -712,7 +720,8 @@ let LADDER = [], CATEGORY_SHORT = {f1:'F1'}, FIELD_SIZE = {};
 let F1_FIELD_SIZE = 20, F1_RACES = 22, SEATS_PER_TEAM = 2;
 let TOP_TEAM_TIER = 85, GRID_REF_TIER = 74, LATE_POOL_FROM_SEASON = 10;
 let F1_TEAMS = [], SURPRISE_TEAMS = [], JUNIOR_TEAMS = {};
-let F1_ENTRIES = [], MAX_TEAMS = 12; // altas reales por año (solo modo real) / tope de equipos para altas aleatorias
+let F1_ENTRIES = [], F1_EXITS = [], F1_ARRIVALS = [], F1_MOVES = [], MAX_TEAMS = 12; // altas y bajas reales por año (solo modo real) / tope de equipos para altas aleatorias
+let LADDER_SLOTS = [], F1_FIELD_EXPLICIT = false; // escalera con eras por categoría / true si la data fija f1FieldSize
 let F1_DRIVERS_SEED = {}, F1_RESERVE_POOL = [], F1_LATE_GAME_POOL = [], BASE_CHAMPIONS = [];
 let TEAM_DATA = {}; // id -> definición completa del equipo (con todas sus eras)
 
@@ -728,22 +737,54 @@ function teamIdentityAt(id, year){
  const e = eraAt(td, year);
  return {name:e.name, color:e.color, logo:e.logo ? LOGO_BASE + e.logo : null};
 }
+// ---- Categorías por época ----
+// Cada escalón de la escalera (f4, fr, f3, f2 = "nivel 1..4", sus ids no cambian) puede tener eras: según el año
+// calendario cambia su nombre, carreras, parrilla y equipos (ej. el escalón "f2" es F3000 -> GP2 -> F2).
+// Formato plano (ladder:[{id,name,short,races,tierBase,fieldSize}] + juniorTeams) = una sola era.
+function eraAtList(list, year){
+ let e = list[0];
+ list.forEach(x=>{ if(x.from <= year) e = x; });
+ return e;
+}
+function normalizeLadder(D){
+ return D.ladder.map(c=>{
+   if(c.eras) return {id:c.id, eras:[...c.eras].sort((a,b)=>a.from-b.from)};
+   return {id:c.id, eras:[{from:-1e9, name:c.name, short:c.short, races:c.races, tierBase:c.tierBase, fieldSize:c.fieldSize, teams:(D.juniorTeams && D.juniorTeams[c.id]) || []}]};
+ });
+}
+// Vuelca al juego la era vigente de cada categoría en "year". Devuelve las categorías cuyo nombre cambió.
+function applyLadderEra(year){
+ const changes = [];
+ LADDER_SLOTS.forEach((s,i)=>{
+   const e = eraAtList(s.eras, year), cur = LADDER[i];
+   if(cur.name && cur.name !== e.name) changes.push({id:s.id, from:cur.name, to:e.name});
+   cur.name = e.name; cur.races = e.races; cur.tierBase = e.tierBase;
+   CATEGORY_SHORT[s.id] = e.short; FIELD_SIZE[s.id] = e.fieldSize;
+   JUNIOR_TEAMS[s.id] = (e.teams || []).map(tm=>({name:tm.name, color:tm.color, logo:tm.logo ? LOGO_BASE + tm.logo : null}));
+ });
+ return changes;
+}
 // Carga la temporada "year" en las variables globales. Devuelve false si no existe su archivo de datos.
 function loadSeason(year){
  const D = window.SEASON_DATA && window.SEASON_DATA[year];
  if(!D) return false;
  const logo = p => p ? LOGO_BASE + p : null;
- LADDER = D.ladder.map(c=>({id:c.id, name:c.name, races:c.races, tierBase:c.tierBase}));
- CATEGORY_SHORT = {f1:'F1'}; FIELD_SIZE = {};
- D.ladder.forEach(c=>{ CATEGORY_SHORT[c.id] = c.short; FIELD_SIZE[c.id] = c.fieldSize; });
+ LADDER_SLOTS = normalizeLadder(D);
+ LADDER = LADDER_SLOTS.map(s=>({id:s.id, name:'', races:0, tierBase:0}));
+ CATEGORY_SHORT = {f1:'F1'}; FIELD_SIZE = {}; JUNIOR_TEAMS = {};
+ applyLadderEra(year);
  SEATS_PER_TEAM = D.seatsPerTeam || 2;
  F1_RACES = D.f1Races || 22;
+ F1_FIELD_EXPLICIT = !!D.f1FieldSize;
  F1_FIELD_SIZE = D.f1FieldSize || D.teams.length * SEATS_PER_TEAM;
  TOP_TEAM_TIER = D.topTeamTier; GRID_REF_TIER = D.gridRefTier;
  LATE_POOL_FROM_SEASON = (D.latePoolFromSeason != null) ? D.latePoolFromSeason : 10;
  SURPRISE_TEAMS = (D.surpriseTeams || []).slice();
  TEAM_DATA = {};
  F1_ENTRIES = (D.entries || []).map(en=>({year:en.year, team:en.team}));
+ F1_EXITS = (D.exits || []).map(x=>({year:x.year, id:x.id}));
+ F1_ARRIVALS = (D.arrivals || []).map(a=>({...a}));
+ F1_MOVES = (D.moves || []).map(m=>({...m}));
  F1_ENTRIES.forEach(en=>{ TEAM_DATA[en.team.id] = en.team; });
  MAX_TEAMS = D.maxTeams || Math.max(12, D.teams.length);
  F1_TEAMS = D.teams.map(tm=>{
@@ -755,8 +796,6 @@ function loadSeason(year){
  D.teams.forEach(tm=>{ F1_DRIVERS_SEED[tm.id] = tm.drivers.map(d=>({...d})); });
  F1_RESERVE_POOL = (D.reservePool || []).map(d=>({...d}));
  F1_LATE_GAME_POOL = (D.latePool || []).map(d=>({...d}));
- JUNIOR_TEAMS = {};
- Object.keys(D.juniorTeams).forEach(cat=>{ JUNIOR_TEAMS[cat] = D.juniorTeams[cat].map(tm=>({name:tm.name, color:tm.color, logo:logo(tm.logo)})); });
  BASE_CHAMPIONS = (D.baseChampions || []).map(c=>({...c}));
  return true;
 }
@@ -926,6 +965,8 @@ function replenishReservePool(){
 function injectLateGamePool(){
  if(!S.aiDrivers || S.lateGamePoolInjected) return;
  if((S.seasonNum||0) < LATE_POOL_FROM_SEASON) return;
+ // Con "cambios reales" y debuts reales cargados (arrivals), los ficticios esperan a que se acabe la historia conocida (después de REAL_CHANGES_UNTIL).
+ if((S.teamChangeMode||'real')==='real' && F1_ARRIVALS.length && currentYear() <= REAL_CHANGES_UNTIL) return;
  F1_LATE_GAME_POOL.forEach(seed=>{
    if(S.aiDrivers[seed.name]) return; // por las dudas, nunca pisar un nombre que ya exista
    const potencialMaximo = clamp(randRange(seed.potRange[0], seed.potRange[1]), seed.ovr, 99);
@@ -1091,7 +1132,7 @@ function fillMarketVacancies(){
  if(!vacancies.length) return;
  vacancies.sort((a,b)=>getF1TeamTier(b)-getF1TeamTier(a));
  vacancies.forEach(teamName=>{
-   const freeAgents = Object.values(S.aiDrivers).filter(d=>!d.team && !d.retired).sort((a,b)=>b.ovr-a.ovr);
+   const freeAgents = Object.values(S.aiDrivers).filter(d=>!d.team && !d.retired && !(d.breakUntil && d.breakUntil > currentYear())).sort((a,b)=>b.ovr-a.ovr);
    if(!freeAgents.length) return;
    // Preferencia blanda de cantera: entre los 3 mejores libres por OVR, si alguno tiene a este equipo
    // como target, se lo queda a él en vez de automáticamente al de más OVR. No es una garantía de
@@ -1197,7 +1238,7 @@ const EVENTS = [
  {icon:'🚪', title:'Tu equipo no te quiere renovar', desc:'El equipo te comunica que, por ahora, no tiene intención de renovar tu contrato.',
    requiresF1:true,
    a:{label:'Buscar otro equipo inmediatamente', ovrDelta:-3, repDelta:10, trigger:'f1Market'},
-   b:{label:'Bajar a F2', ovrDelta:3, repDelta:-10, trigger:'demoteToF2'}},
+   b:{get label(){ return 'Bajar a ' + (CATEGORY_SHORT.f2 || 'F2'); }, ovrDelta:3, repDelta:-10, trigger:'demoteToF2'}},
  {icon:'🤝', title:'Una oferta de renovación', desc:'Tu equipo quiere mantenerte, pero las condiciones del contrato son peores que las actuales.',
    requiresF1:true,
    a:{label:'Aceptar', ovrDelta:-1, repDelta:-2},
@@ -1324,12 +1365,14 @@ const AWARD_NAMES = {runnerup:'Subcampeonato', rookie:'Novato del Año', fastlap
 const AWARD_ICON = {runnerup:'🥈', rookie:'🌟', fastlap:'⚡', driver:'🎖️'};
 
 // Vitrina: un trofeo distinto por campeonato. v3.7.4: ya tenemos las copas reales -> se cargan acá.
+// El nombre de la copa sigue a la categoría vigente (ej. "Campeonato de GP2 Series" en 2010).
+function trophyLabel(slot){ const c = LADDER.find(x=>x.id===slot); return 'Campeonato de ' + (c ? c.name : slot); }
 const TROPHY_META = {
  f1:           {emoji:'🏆', label:'Campeonato Mundial de Fórmula 1', img:'assets/trophies/trofeo-f1.png'},
- f2:           {emoji:'🥈', label:'Campeonato de FIA Fórmula 2', img:'assets/trophies/trofeo-f2.png'},
- f3:           {emoji:'🥇', label:'Campeonato de FIA Fórmula 3', img:'assets/trophies/trofeo-f3.png'},
- fr:           {emoji:'🥉', label:'Campeonato de Fórmula Regional', img:'assets/trophies/trofeo-fr.png'},
- f4:           {emoji:'🏅', label:'Campeonato de Fórmula 4', img:'assets/trophies/trofeo-f4.png'},
+ f2:           {emoji:'🥈', get label(){ return trophyLabel('f2'); }, img:'assets/trophies/trofeo-f2.png'},
+ f3:           {emoji:'🥇', get label(){ return trophyLabel('f3'); }, img:'assets/trophies/trofeo-f3.png'},
+ fr:           {emoji:'🥉', get label(){ return trophyLabel('fr'); }, img:'assets/trophies/trofeo-fr.png'},
+ f4:           {emoji:'🏅', get label(){ return trophyLabel('f4'); }, img:'assets/trophies/trofeo-f4.png'},
  constructors: {emoji:'🚗', label:'Campeonato de Constructores', img:'assets/trophies/trofeo-con.png'}
 };
 // orden de despliegue en la vitrina (no afecta ninguna mecánica, solo el orden visual)
@@ -1394,7 +1437,7 @@ let S = {
  lastDriverNews:null, // v3.7: standings del Mundial de Pilotos (top 3 + posición del jugador), ver buildDriverNews()
  aiDrivers:null, // se inicializa con initAIDrivers() al arrancar / resetear: pilotos IA de F1 (v3.0)
  teamChangeMode:'real', // 'real' (eras del año calendario) | 'random' (nombres congelados + azar) | 'off' (solo pruebas)
- teamChangeLog:{}, teamChangeHistory:[], lastTeamChangeSeason:null, lastEntrySeason:null, // última temporada de cambio por equipo / historial / anti-rachas
+ teamChangeLog:{}, teamChangeHistory:[], lastTeamChangeSeason:null, lastEntrySeason:null, arrivalsDone:{}, movesDone:{}, // última temporada de cambio por equipo / historial / anti-rachas
  seasonNum:0, // v3.6: cuenta temporadas jugadas desde el arranque de la partida (independiente de la edad)
  lateGamePoolInjected:false, // v3.6: si ya se sumó F1_LATE_GAME_POOL al mercado de libres (pasada la temporada 10)
  // v6: sistema de Piloto Nº1 / Nº2 / Reserva. f1Role es null fuera de F1; dentro de F1 vale
@@ -1495,10 +1538,9 @@ function render(){
  else app.innerHTML = renderCareer();
  scrollTimelineToNow();
 }
-// v: mantiene visible la fila actual dentro de la cajita con scroll de la trayectoria (mobile), sin
-// tocar el scroll de la página. En desktop la caja no tiene overflow propio, así que no hace nada.
+// v: mantiene visible la fila actual (la última temporada) dentro de la cajita con scroll de la trayectoria,
+// en PC y en celular, sin tocar el scroll de la página.
 function scrollTimelineToNow(){
- if(window.innerWidth>900) return;
  const body = document.getElementById('tlBody');
  if(!body) return;
  const nowRow = body.querySelector('.tl-row.now') || body.querySelector('.tl-row.tl-agg');
@@ -1535,7 +1577,7 @@ function renderHome(){
        <div class="wipe-bar" id="wipeBar"></div>
      </div>
      <div id="rowRealChanges" style="${realChangesAvailable()?'':'display:none'}">
-       <label class="opt-row"><input type="checkbox" id="optRealChanges" ${S.teamChangeMode==='random'?'':'checked'} onchange="setTeamChangeMode(this.checked)"> Cambios reales de escuderías</label>
+       <label class="opt-row"><input type="checkbox" id="optRealChanges" ${S.teamChangeMode==='random'?'':'checked'} onchange="setTeamChangeMode(this.checked)"> Cambios reales (escuderías, categorías y pilotos)</label>
        <div class="opt-hint" id="teamChangeHint">${teamChangeHintText()}</div>
      </div>
      <div class="home-actions">
@@ -1911,8 +1953,8 @@ function teamNameCatalog(){
 function realChangesAvailable(){ return S.season < REAL_CHANGES_UNTIL; } // desde 2026 no hay cambios oficiales
 function teamChangeHintText(){
  return S.teamChangeMode==='random'
-   ? 'Los equipos conservan su nombre y la parrilla no cambia, salvo cambios aleatorios muy poco frecuentes.'
-   : 'Los equipos cambian de nombre y se suman nuevos como en la realidad hasta 2026 (ej. Cadillac); después, por azar.';
+   ? 'Todo queda congelado (equipos, parrilla, categorías y pilotos), salvo cambios aleatorios muy poco frecuentes. Más adelante entran pilotos ficticios.'
+   : 'Equipos, categorías y pilotos evolucionan como en la realidad hasta 2026 (los pilotos reales debutan en su año); después, por azar.';
 }
 function updateTeamChangeOption(){
  const r = document.getElementById('rowRealChanges');
@@ -1949,6 +1991,107 @@ function applyTeamIdentity(team, ident, kind, shock){
  S.teamChangeHistory.push(rec);
  return rec;
 }
+// ---- Debuts reales (arrivals) ----
+// En su año de debut, el piloto real entra al equipo con el que debutó: si es un piloto nuevo se crea; si ya estaba en la
+// cantera de arranque (name solo), se lo ficha. Si el equipo está completo, desplaza al más flojo siempre que el debutante
+// no sea mucho peor (ARRIVAL_DISPLACE_GUARD) -salvo force:true (estrellas: Hamilton, Verstappen, Schumacher...)-; si no, queda libre con preferencia por ese equipo.
+const ARRIVAL_DISPLACE_GUARD = 6;
+function newAIDriverFromSeed(seed){
+ const potencialMaximo = clamp(randRange(seed.potRange[0], seed.potRange[1]), seed.ovr, 99);
+ const retireAge = randRange(seed.retireRange[0], seed.retireRange[1]);
+ return {name:seed.name, team:null, age:seed.age, ovr:seed.ovr, potencialMaximo,
+   velocidadCrecimiento:+(0.7 + rnd()*0.8).toFixed(2), edadPico:Math.round(25 + rnd()*8),
+   reputacion:seed.rep!=null ? seed.rep : 50, status:'libre', nat:seed.nat || null, retireAge, retired:false,
+   debuted:false, targetTeams:seed.targetTeams || [], f1Titles:0};
+}
+let PLACED_THIS_YEAR = new Set(); // los que entraron/fichan este año no pueden ser desplazados por otro del mismo año (ej. Hamilton y Alonso en McLaren 2007)
+function placeDebut(drv, teamId, force){
+ const cap = f1SeatCapacity(teamId);
+ // a quién desplazar: el más flojo, pero las estrellas (debut/fichaje forzado) cuentan con +10 para no perder su lugar frente a un fichaje menor
+ const roster = getTeamAIDrivers(teamId).sort((a,b)=>(a.ovr+(a.star?10:0))-(b.ovr+(b.star?10:0)));
+ if(roster.length >= cap){
+   const worst = roster.find(x=>!PLACED_THIS_YEAR.has(x.name));
+   if(!worst || (!force && worst.ovr > drv.ovr + ARRIVAL_DISPLACE_GUARD)) return false;
+   worst.team = null; worst.status = 'libre';
+ }
+ drv.team = teamId; drv.debuted = true; drv.status = 'confirmado';
+ if(force) drv.star = true;
+ PLACED_THIS_YEAR.add(drv.name);
+ return true;
+}
+function processArrivals(year){
+ const debuts = [];
+ PLACED_THIS_YEAR = new Set();
+ S.arrivalsDone = S.arrivalsDone || {};
+ F1_ARRIVALS.forEach(a=>{
+   const name = a.d ? a.d.name : a.name;
+   if(a.year > year || S.arrivalsDone[name]) return;
+   S.arrivalsDone[name] = true;
+   let drv = S.aiDrivers[name];
+   if(a.d){
+     if(drv) return;
+     drv = newAIDriverFromSeed(a.d);
+     S.aiDrivers[name] = drv;
+   } else if(!drv || drv.retired || drv.team) return;
+   if(a.team) drv.targetTeams = [a.team, ...(drv.targetTeams||[]).filter(x=>x!==a.team)];
+   if(a.team && F1_TEAMS.some(tm=>tm.id===a.team) && placeDebut(drv, a.team, a.force)) debuts.push({name, team:a.team, year});
+ });
+ return debuts;
+}
+// ---- Fichajes reales (moves) ----
+// Cambios de equipo de las figuras en su año real (ej. Hamilton -> Mercedes 2013). {year, name, team}; team:null = deja la F1
+// hasta "until" (sabático, lesión) y el mercado no lo toma mientras tanto. Si el equipo destino está completo, desplaza al más
+// flojo (mismo criterio que un debut). Un piloto que ya no existe/retirado, o un equipo que ya no está, simplemente se ignora.
+function applyRealMoves(year){
+ const moved = []; let changed = false;
+ S.movesDone = S.movesDone || {};
+ F1_MOVES.forEach(m=>{
+   const key = m.name + '|' + m.year;
+   if(m.year > year || S.movesDone[key]) return;
+   S.movesDone[key] = true;
+   const d = S.aiDrivers[m.name];
+   if(!d || d.retired) return;
+   if(m.team === null){ d.team = null; d.status = 'libre'; d.breakUntil = m.until || 2100; changed = true; return; }
+   if(!F1_TEAMS.some(tm=>tm.id===m.team)) return;
+   d.breakUntil = null;
+   if(d.team === m.team) return;
+   const prev = d.team; d.team = null;
+   if(placeDebut(d, m.team, m.force)){ moved.push({name:m.name, team:m.team, year}); changed = true; }
+   else d.team = prev;
+ });
+ if(changed) fillMarketVacancies();
+ return moved;
+}
+function updateF1FieldSize(){ if(!F1_FIELD_EXPLICIT) F1_FIELD_SIZE = F1_TEAMS.length * SEATS_PER_TEAM; }
+// Baja de un equipo (real, definida en data como exits). Sus pilotos quedan libres; si el jugador corre ahí, se
+// queda sin asiento y se resuelve como una oferta de otros equipos (buildFoldedTeamEvent, en runSeasons).
+function removeF1Team(id, year){
+ const idx = F1_TEAMS.findIndex(t=>t.id===id);
+ if(idx < 0) return null;
+ const name = F1_TEAMS[idx].name;
+ Object.values(S.aiDrivers || {}).forEach(d=>{ if(d.team===id){ d.team = null; d.status = 'libre'; } });
+ if(!S.retired && S.ladderIdx >= LADDER.length && currentTeamId()===id) S._teamFolded = {id, name};
+ F1_TEAMS.splice(idx, 1);
+ delete S.teamDynamics[id];
+ updateF1FieldSize();
+ const rec = {id, from:name, to:null, kind:'exit', year};
+ S.teamChangeHistory.push(rec);
+ return rec;
+}
+// El equipo del jugador desapareció: ofertas de otros equipos de F1 (sin sorteo de riesgo) o, con reputación muy baja, vuelta a F2.
+function buildFoldedTeamEvent(){
+ const folded = S._teamFolded; S._teamFolded = null;
+ if(S.reputacion >= 15 && F1_TEAMS.length){
+   const lvl = S.ovr + (S.reputacion-50)*0.2;
+   const pool = [...F1_TEAMS].sort((a,b)=>Math.abs(a.tier-lvl)-Math.abs(b.tier-lvl)).slice(0, S.reputacion>=40 ? 3 : 2)
+     .sort((a,b)=>b.tier-a.tier).map(tm=>({...tm, role: deriveOfferedRole(tm)}));
+   return {type:'f1Offer', options:pool, isNonRenewal:true, foldedTeam:folded.name};
+ }
+ S.ladderIdx = LADDER.length-1; S.seasonsInCategory = 0; S.f1Role = null;
+ const ev = buildTeamOfferEvent(S.ladderIdx, false);
+ ev.isDemotion = true;
+ return ev;
+}
 // Suma un equipo nuevo a la parrilla (alta real de data o alta aleatoria). Sus asientos se cubren con la cantera libre.
 function addF1Team(td, year, kind){
  TEAM_DATA[td.id] = td;
@@ -1957,6 +2100,7 @@ function addF1Team(td, year, kind){
  S.teamDynamics[td.id] = {tier: clamp(td.tier + (rnd()*2-1)*3.5, 30, 99), momentum:0, lastDelta:0, hadProject:false, seasonsAtTop:0};
  markTeamChange(td.id);
  if(kind==='entry-random') S.lastEntrySeason = S.seasonNum||0;
+ updateF1FieldSize();
  fillMarketVacancies();
  const rec = {id:td.id, from:null, to:e.name, kind:'entry', year};
  S.teamChangeHistory.push(rec);
@@ -2004,6 +2148,8 @@ function rollRandomTeamChange(){
  return null;
 }
 function teamChangeHeadline(c){
+ if(c.kind==='exit')   return `🏁 ${c.from} desaparece de la parrilla de F1 en ${c.year}.`;
+ if(c.kind==='category') return `🏁 ${c.from} da paso a ${c.to} desde ${c.year}.`;
  if(c.kind==='entry')  return `🆕 ${c.to} se suma a la parrilla de F1 en ${c.year}.`;
  if(c.kind==='real')   return `🔄 ${c.from} pasa a llamarse ${c.to} desde ${c.year}.`;
  if(c.kind==='maker')  return `🏭 ${c.to} compra ${c.from}: el equipo se presenta como ${c.to} en ${c.year}.`;
@@ -2022,7 +2168,12 @@ function processTeamChanges(){
      if(ident.name !== t.name) done.push(applyTeamIdentity(t, ident, 'real', 0));
      else { t.color = ident.color; t.logo = ident.logo; }
    });
-   F1_ENTRIES.forEach(en=>{ if(en.year <= year && !F1_TEAMS.some(t=>t.id===en.team.id)) done.push(addF1Team(en.team, year, 'entry')); });
+   F1_EXITS.forEach(ex=>{ if(ex.year <= year && F1_TEAMS.some(t=>t.id===ex.id)) done.push(removeF1Team(ex.id, year)); });
+   // una alta solo corre si el equipo no está ya en la parrilla Y no tuvo su baja (si no, un equipo dado de baja volvería a entrar)
+   F1_ENTRIES.forEach(en=>{ if(en.year <= year && !F1_TEAMS.some(t=>t.id===en.team.id) && !F1_EXITS.some(ex=>ex.id===en.team.id && ex.year<=year)) done.push(addF1Team(en.team, year, 'entry')); });
+   applyLadderEra(year).forEach(c=>{ const rec = {id:c.id, from:c.from, to:c.to, kind:'category', year}; S.teamChangeHistory.push(rec); done.push(rec); });
+   processArrivals(year);  // debuts y fichajes reales de pilotos: se aplican sin titulares (la pestaña de noticias solo informa cambios de escuderías)
+   applyRealMoves(year);
  } else {
    const c = rollRandomTeamChange();
    if(c) done.push(c);
@@ -2504,7 +2655,7 @@ function runSeasons(){
    lastBlockCache.finalPos = lastSeasonStats.finalPos; // se muestra la posición de la última temporada del bloque
    // v6: el riesgo de asiento de un reserva no pasa por checkSeatRenewal (no tiene asiento de carrera
    // que perder) -- lo resuelve checkReserveSeasonOutcome() con su propia matriz de probabilidades.
-   const seatEvent = wasReserve ? checkReserveSeasonOutcome() : checkSeatRenewal();
+   const seatEvent = S._teamFolded ? buildFoldedTeamEvent() : (wasReserve ? checkReserveSeasonOutcome() : checkSeatRenewal());
    if(seatEvent){
      if(seatEvent.type==='careerEnd'){
        S.careerEndReason = seatEvent.reason;
@@ -3437,10 +3588,12 @@ function decisionAreaHTML(){
    </div>`;
  }
  if(p.type==='f1Offer'){
-   const title = p.isNonRenewal ? 'Sin renovación en tu escudería' : '¡Debut en la Fórmula 1!';
-   const desc = p.isNonRenewal
-     ? 'Tu escudería no te renovó para la próxima temporada, pero otros equipos de F1 muestran interés.'
-     : 'Tu progresión en las categorías juniors llamó la atención. Escuderías de F1 quieren ficharte.';
+   const title = p.foldedTeam ? 'Tu escudería desaparece' : (p.isNonRenewal ? 'Sin renovación en tu escudería' : '¡Debut en la Fórmula 1!');
+   const desc = p.foldedTeam
+     ? p.foldedTeam+' deja la parrilla de la Fórmula 1 y te quedás sin asiento, pero otros equipos muestran interés en vos.'
+     : (p.isNonRenewal
+       ? 'Tu escudería no te renovó para la próxima temporada, pero otros equipos de F1 muestran interés.'
+       : 'Tu progresión en las categorías juniors llamó la atención. Escuderías de F1 quieren ficharte.');
    return `<div class="decision-card">
      <h3>${title}</h3>
      <p class="desc">${desc}</p>
@@ -3751,8 +3904,10 @@ function championsHistoryOverlayHTML(){
 // v: resumen final en mobile -- fila de escudos (trayectoria, con aura según título ganado ahí) +
 // fila de trofeos agregados de toda la carrera (títulos), reemplazando a las tarjetas de equipo
 // solo en mobile (ver .summary-teams-mobile). El desktop sigue usando team-cards sin cambios.
+// Escuderías que se muestran en el resumen: todas, o solo las de F1 si está tildada la casilla (los tramos de F1 son los que tienen teamId).
+function summaryStints(){ return S.summaryF1Only ? S.stints.filter(st=>st.teamId) : S.stints; }
 function summaryTeamsMobileHTML(){
- const crests = S.stints.map(st=>{
+ const crests = summaryStints().map(st=>{
    const byCat = st.titlesByCat || {};
    const hasF1 = (byCat.f1||0) > 0;
    const hasCon = (byCat.constructors||0) > 0;
@@ -3786,8 +3941,9 @@ function renderSummary(){
  <div class="topbar"><div class="eyebrow"><span class="dot"></span>RESUMEN DE CARRERA</div></div>
  <div class="fadein">
  ${summaryPlayerCardHTML()}
- <div class="team-cards" style="margin-top:18px;">
-   ${S.stints.map((st,i)=>`<div class="team-card" style="background:linear-gradient(160deg, ${st.color}dd, #0a0a0c)">
+ ${S.stints.some(st=>st.teamId) ? `<label class="opt-row" style="justify-content:center; margin:18px 0 0;"><input type="checkbox" ${S.summaryF1Only?'checked':''} onchange="S.summaryF1Only=this.checked; render()"> Ver solo las escuderías de F1</label>` : ''}
+ <div class="team-cards" style="margin-top:14px;">
+   ${summaryStints().map((st,i)=>`<div class="team-card" style="background:linear-gradient(160deg, ${st.color}dd, #0a0a0c)">
      ${teamBadge(st.teamName, 'rgba(255,255,255,0.12)', st.logo, 'logo2')}
      <div class="tn">${st.teamName}</div>
      <div class="st"><div>GP<b>${st.races}</b></div><div>Vic<b>${st.wins}</b></div><div>Pod<b>${st.podiums}</b></div></div>
@@ -3821,7 +3977,7 @@ function resetGame(){
   seasonsInCategory:0, lastCategoryId:null,
   teamDynamics:null, lastConstructorNews:null, lastDriverNews:null,
   aiDrivers:null,
-  teamChangeMode:S.teamChangeMode, teamChangeLog:{}, teamChangeHistory:[], lastTeamChangeSeason:null, lastEntrySeason:null,
+  teamChangeMode:S.teamChangeMode, teamChangeLog:{}, teamChangeHistory:[], lastTeamChangeSeason:null, lastEntrySeason:null, arrivalsDone:{}, movesDone:{},
   seasonNum:0, lateGamePoolInjected:false,
   f1Role:null, reserveLog:{successes:0, fails:0, total:0}, lastReserveRecap:null
  };
